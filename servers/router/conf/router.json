@@ -1,0 +1,12 @@
+{
+    "AppName": "AppRouter",
+    "AppType": 6,
+    "AppID": 10,
+    "TCPAddr": "0.0.0.0:10001",
+	"TCPClientAddr": "",
+    "LogServerAddr": "",
+	"WorkDB":"",
+    "MaxConnNum": 20000,
+    "ConsolePort": 0,
+    "ScreenPrint": true
+}
