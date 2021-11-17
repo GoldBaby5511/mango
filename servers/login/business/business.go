@@ -8,6 +8,7 @@ import (
 	"xlddz/core/network/protobuf"
 	"xlddz/protocol/client"
 	"xlddz/protocol/router"
+	"xlddz/protocol/types"
 	"xlddz/servers/login/conf"
 )
 
@@ -55,6 +56,7 @@ func sendLoginRsp(a n.Agent, gateConnId uint64, info string, code int32) {
 	var rsp client.LoginRsp
 	rsp.LoginInfo = proto.String(info)
 	rsp.LoginResult = (*client.LoginRsp_Result)(proto.Int32(code))
+	rsp.BaseInfo = new(types.BaseUserInfo)
 	rsp.BaseInfo.UserId = proto.Uint64(10001)
 	rsp.BaseInfo.GameId = proto.Uint64(10001)
 
