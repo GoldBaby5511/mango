@@ -4,7 +4,7 @@
     "AppID": 10,
     "TCPAddr": "0.0.0.0:10001",
 	"TCPClientAddr": "",
-    "LogServerAddr": "",
+    "LogServerAddr": "127.0.0.1:20001",
 	"WorkDB":"",
     "MaxConnNum": 20000,
     "ConsolePort": 0,

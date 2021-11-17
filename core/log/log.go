@@ -197,17 +197,10 @@ func printLog(classname, file, format string, line, level int, a ...interface{})
 		gtempLogInfo = append(gtempLogInfo, logInfo)
 	}
 
-	//组装格式|| gChanCall == nil
-	if gScreenPrint || level >= errorLevel {
+	//组装格式
+	if gScreenPrint || level >= errorLevel || gChanCall == nil {
 		//屏幕打印时调用位置不打印了 + fmt.Sprintf(" << %s, line #%d, func: %v ", file, line, runtime.FuncForPC(pc).Name())
-		logLevel := printDebugLevel
-		if level == info {
-			logLevel = printInfoLevel
-		} else if level == warning {
-			logLevel = printWarningLevel
-		} else if level == errorLevel {
-			logLevel = printErrorLevel
-		}
+		logLevel := GetLogLevelStr(level)
 
 		format = nowTimeString() + logLevel + format
 		logStr := fmt.Sprintf(format, a...)
@@ -247,6 +240,20 @@ func Fatal(classname, format string, a ...interface{}) {
 	_, file, line, _ := runtime.Caller(2)
 	printLog(classname, file, format, line, errorLevel, a...)
 	os.Exit(1)
+}
+
+func GetLogLevelStr(level int) string {
+	logLevel := ""
+	if level == debugLevel {
+		logLevel = printDebugLevel
+	} else if level == info {
+		logLevel = printInfoLevel
+	} else if level == warning {
+		logLevel = printWarningLevel
+	} else if level == errorLevel {
+		logLevel = printErrorLevel
+	}
+	return logLevel
 }
 
 func Close() {

@@ -1,0 +1,108 @@
+syntax = "proto2";
+import "types.proto";
+package bs.client;
+option go_package ="/client";
+
+enum CMDID_Client {
+	IDLoginReq = 1;			//登录请求
+	IDLoginRsp = 2;			//登录回复
+	IDLogoutReq = 3;		//注销登录
+	IDLogoutRsp = 4;		//注销登录
+}
+
+//登录请求
+message LoginReq{
+   enum LoginAction {
+		ByAccount = 0;			//账号
+		GuestLogin = 2;			//游客,即快速登录
+		ByMobile = 3;			//手机号
+		ByThirdID = 4;			//第三方ID
+		ByGameID = 5;			//GameID 数字ID
+		Robot = 10;				//机器人
+   };
+   
+   optional uint32 			game_kind = 1;			//游戏种类
+   optional LoginAction 	action_type = 2;		//登录类型
+   optional uint32 			build_no = 4;
+   optional uint32 			market_id = 5;
+   optional uint64 			game_id = 6;
+   optional string 			login_account = 7;		//用户账号
+   optional string 			login_password = 8;		//用户密码
+   optional string 			client_version = 9;		//客户端版本号
+   optional string 			client_IP = 10;			//客户端IP
+   optional string 			system_version = 11;	//操作系统版本号
+   optional string 			bios_serial = 12;		//BIOS序列号
+   optional string 			cpu_serial = 13;		//CPU序列号
+   optional string 			HD_serial = 14;			//硬盘序列号
+   optional string 			MAC_address = 15;		//MAC地址
+   optional string 			protect_data = 16;		//保护数据
+   optional uint32 			channel_id = 17;		//主渠道id
+   optional uint32 			site_id = 18;			//子渠道id
+   optional uint32 			bar_id = 19;			//网吧id
+   optional string 			GUID = 20;				//GUID
+   optional uint32 			logon_token = 21;		//登录令牌
+
+   //游客登录
+   enum NetworkType {
+      UNKWON = -1;
+      DIANXIN = 0;		//电信
+      YIDONG = 1;		//移动
+      LIANTONG = 2;		//联通
+      WIFI = 3;			//wifi
+   }
+
+   optional string 			mobile_code = 22;		//手机唯一标识
+   optional string 			os_version = 23;		//系统版本号
+   optional NetworkType 	sp_id = 24;				//使用的网络类型
+   optional string  		custom_face = 25;		//自定义头像的地址 
+   optional string  		user_center_token = 26;	//接入用户中心的token 
+   optional uint64  		user_id = 27;			//当接入用户中心后，终端在登陆时是可以知道用户ID的，要将这个值传上来
+   optional uint64  		login_app_id = 28;		// 登陆的appid
+   optional string  		client_code = 29;		//client_code
+   optional string  		package_name = 30;      //包名(手机版使用)
+   optional string  		login_ways = 31;        //登录方式(91account,phonenumber,xiaomi,vivo,oppo,huawei,weixin,weibo,alipay...)
+};
+
+// 登录回复
+message LoginRsp{
+   // 登录结果
+   enum Result {
+		SUCCESS = 0;					//成功
+		NOTEXIST = 1;					//账号不存在
+		FROZEN = 2;						//账号被冻结
+		FALSEPW = 3;					//密码错误	
+		NETERROR = 4;					//网络异常	
+		APPISBUSY = 5;					//服务器忙，人数爆满
+		GUESTFORBID = 6;				//禁止游客登录
+		CONNECTERROR = 7;				//连接异常	
+		VERSIONOLD = 8;					//版本过低
+		NOMOREGUEST = 9;				//游客分配失败
+		FREQUENTLY = 10;				//所在ip登录过多
+		APPINITING = 11;				//系统初始化，请稍后再试
+		SERVERERROR = 0xFF;				//服务端出错
+		UNKOWN = 1000;					//未知错误
+		TOKEN_FAILED = 1001;			//Token出错
+		TOKEN_EXPIRED = 1002;			//token过期了
+		TOKEN_NOTMATCH = 1003;			//token与appid不匹配
+   }
+   optional Result 				login_result = 1;						//登录结果
+   optional string 				login_info = 2;							//登录失败时的提示信息
+   optional types.BaseUserInfo	base_info = 3;							//成功后的基本信息
+};
+
+
+// 注销登录
+message LogoutReq{
+   required uint64 user_id = 1;
+}
+
+// 注销登录
+message LogoutRsp{
+   enum LogoutReason {
+      Normal = 0;
+      AnotherLogin = 1;   //被顶号
+   };
+
+   optional LogoutReason		logout_reason = 1;
+   optional string				reason_info = 2;
+}

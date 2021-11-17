@@ -55,6 +55,8 @@ func sendLoginRsp(a n.Agent, gateConnId uint64, info string, code int32) {
 	var rsp client.LoginRsp
 	rsp.LoginInfo = proto.String(info)
 	rsp.LoginResult = (*client.LoginRsp_Result)(proto.Int32(code))
+	rsp.BaseInfo.UserId = proto.Uint64(10001)
+	rsp.BaseInfo.GameId = proto.Uint64(10001)
 
 	rspBm := n.BaseMessage{MyMessage: &rsp, TraceId: ""}
 	rspBm.Cmd = n.TCPCommand{MainCmdID: uint16(n.CMDClient), SubCmdID: uint16(client.CMDID_Client_IDLoginRsp)}

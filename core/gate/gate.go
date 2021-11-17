@@ -10,6 +10,7 @@ import (
 	"xlddz/core/conf"
 	"xlddz/core/log"
 	n "xlddz/core/network"
+	"xlddz/protocol/logger"
 	"xlddz/protocol/router"
 )
 
@@ -26,16 +27,9 @@ const (
 )
 
 var (
-	tcpLog             *n.TCPClient
 	routerMsgChan      []chan []interface{} //router消息并发通道
 	cbRouterDisconnect []func()             //router断开回调
 )
-
-func init() {
-	if tcpLog == nil {
-		tcpLog = new(n.TCPClient)
-	}
-}
 
 //Gate 服务端网关
 type Gate struct {
@@ -66,8 +60,8 @@ type Gate struct {
 //Run module实现
 func (gate *Gate) Run(closeSig chan bool) {
 
-	log.Info("gate", "网关执行,TCPAddr=%v,RouterAddr=%v",
-		gate.TCPAddr, gate.TCPClientAddr)
+	log.Info("gate", "网关执行,TCPAddr=%v,RouterAddr=%v,LogAddr=%v",
+		gate.TCPAddr, gate.TCPClientAddr, gate.LogAddr)
 
 	var wsServer *n.WSServer
 	if gate.WSAddr != "" {
@@ -102,6 +96,40 @@ func (gate *Gate) Run(closeSig chan bool) {
 			if gate.AgentChanRPC != nil {
 				gate.AgentChanRPC.Go(ConnectSuccess, a, agentId)
 			}
+			return a
+		}
+	}
+
+	//log连接
+	var tcpLog *n.TCPClient
+	if gate.LogAddr != "" {
+		tcpLog = new(n.TCPClient)
+		tcpLog.Addr = gate.LogAddr
+		tcpLog.NewAgent = func(conn *n.TCPConn) n.Agent {
+			a := &agent{conn: conn, gate: gate, agentType: AGENT_TYPE_LOGGER}
+			log.Info("agent", "日志服务器连接成功,Addr=%v", a.gate.LogAddr)
+
+			callChan := make(chan log.LogInfo)
+			//这里边不能再有log调用否则就是死循环
+			go func() {
+				for {
+					logInfo := <-callChan
+
+					var logReq logger.LogReq
+					logReq.FileName = proto.String(logInfo.File)
+					logReq.LineNo = proto.Uint32(uint32(logInfo.Line))
+					logReq.SrcApptype = proto.Uint32(conf.AppType)
+					logReq.SrcAppid = proto.Uint32(conf.AppID)
+					logReq.Content = []byte(logInfo.LogStr)
+					logReq.ClassName = []byte(logInfo.Classname)
+					logReq.LogLevel = proto.Uint32(uint32(logInfo.Level))
+					logReq.TimeMs = proto.Uint64(logInfo.TimeMs)
+					logReq.SrcAppname = proto.String(conf.AppName)
+					a.SendData(n.CMDLogger, uint32(logger.CMDID_Logger_IDLogReq), &logReq)
+				}
+			}()
+
+			log.SetLogCallBack(callChan)
 			return a
 		}
 	}
@@ -180,6 +208,9 @@ func (gate *Gate) Run(closeSig chan bool) {
 	}
 	if tcpServer != nil {
 		tcpServer.Start()
+	}
+	if tcpLog != nil {
+		tcpLog.Start()
 	}
 	if tcpRouterClient != nil {
 		tcpRouterClient.Start()

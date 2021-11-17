@@ -21,7 +21,7 @@ var Server struct {
 }
 
 func init() {
-	data, err := ioutil.ReadFile("conf/router.json")
+	data, err := ioutil.ReadFile("conf/logger.json")
 	if err != nil {
 		log.Fatal("jsonconf", "%v", err)
 	}

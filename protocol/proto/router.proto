@@ -1,0 +1,112 @@
+syntax = "proto2";
+package bs.router;
+option go_package ="/router";
+
+enum CMDID_Router {
+	IDAppRegReq			=1;			//服务注册
+	IDAppRegRsp			=2;			//服务注册
+	IDAppState			=3;			//服务状态
+	IDDataMessageReq	=4;			//消息转发
+	IDDataMessageRsp	=5;			//消息转发
+	IDPulseNotify		=6;			//服务心跳
+	IDAppOfflineReq		=7;			//服务离线
+	IDAppUpdateReq		=8;			//更新请求  
+
+	IDLast				=10;
+};
+
+message AppUpdateReq {
+	optional string log_addr = 1; // 日志地址信息(log_ip:port,log_level)
+}
+
+//服务注册
+message	RegisterAppReq {
+	required string auth_key =1;
+	optional string att_data =2;
+	optional string my_address=3;
+	optional uint32 app_type=4;   	//Router 或其他
+	optional uint32 app_id =5;
+	optional string rereg_token=6; 	//如果中间网络断开了,可以使用rereg_token强行再次注册
+	optional string app_name = 7; 	//app的名称(一般为进程名)
+};
+
+//服务注册
+message RegisterAppRsp {
+  required uint32	reg_result = 1; 	//0表示成功，其它为错误码(rereg_token为出错内容)
+  optional string	rereg_token = 2; 	//如果中间网络断开了,可以使用rereg_token强行再次注册
+  optional uint32	router_id = 3;
+  optional uint32	load_data=4;
+}
+
+//服务状态
+message AppStateNotify{
+	enum state {
+		Online=1;
+		ReOnline=2;
+		OffLine=3;
+	} 
+	required uint32 app_state=1;
+	optional uint32 router_id=2;     //所连的router id
+	optional uint32 app_type=4;
+	optional uint32 app_id =5;
+}
+
+//服务心跳
+message AppPulseNotify{
+	enum PulseAction{
+		HeartBeatReq=0;
+		HeartBeatRsp=1;
+		LogoutReq=2;
+		LogoutRsp=3;
+		AnotherLogin=5;//顶掉了。
+	}
+	required PulseAction action=1;
+
+  //发送的心跳数据
+  optional uint64  pulse_data=2;
+
+  //10万-(最近10万条报文，花了多少ms,ms>10万，则ms=10万)
+  //load_data 越小表示负载越低
+  //如果当前报文数，不到10万，则load_data为1000
+  //每报文数量超过10万，则自动更新load_data,累计最近10次的load_data发回去。
+  optional uint32  load_data=3;
+};
+
+//转发方向
+enum EnuDataDirection{
+   DT_App2App=0;     //从一个app转到另一个app
+   DT_Client2App=1;  //从客户端转到app
+   DT_App2Client=2;  //从app转到client
+};
+
+//消息转发
+message DataTransferReq{
+   optional uint32 src_apptype=1;		//源app
+   optional uint32 src_appid=2;			//源app_id
+   optional uint32 dest_apptype=3;    	//目标app  如果为0则是any,=1 表示所有,其他表示特定的
+   optional uint32 dest_appid=4;      	//目标appID,如果为0则是随机,=1 表示所有，其他表示特定
+   optional bytes  data_buff=5;        	//要发送的数据 
+   optional uint32 id_req = 6;         	//转发ID 
+   optional uint32 data_cmdkind=7;     	//打包了的命令大类
+   optional uint32 data_cmdsubid=8;    	//打包了的命令小类
+   optional uint32 data_direction=9;	//转发类型
+   optional uint64 att_userid=10;       //关联的用户ID
+   optional uint64 att_gateconnid=11; 	//关联的gate连接id
+   optional uint32 att_gateid = 12;		//关联的gate_id
+   optional uint64 att_sessionid=13;   	//关联的session id
+   optional uint32 client_ip = 14;    	//如果是来自于那个gate的话，则需要带上这个ip
+};
+
+//消息转发
+message DataTransferRsp{
+   optional uint32 id_req = 6;         //转发ID 
+   optional uint32 result = 7;         //转发结果
+};
+
+//服务离线
+message AppOfflineReq
+{
+	optional bool is_offline = 1;	//是否下线
+	optional uint32 app_id=2;
+	optional uint32 app_type=3;
+};

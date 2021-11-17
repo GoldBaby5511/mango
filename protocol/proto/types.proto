@@ -1,0 +1,361 @@
+syntax = "proto2";
+package bs.types;
+option go_package ="xlddz/protocol/types";
+
+enum ClientOS{
+	UNKNOW = 0;
+	PC = 0x1;
+	IOS = 0x2;	
+	Android = 0x4;
+	H5 = 0x8;
+};
+
+/** 通用消息
+可以省掉定义一些其他报文
+*/
+message	CommonMessage{
+	optional bytes 	string_data=1;
+	optional uint64 	longlong_value=2;
+}
+
+/*
+*基础用户信息 
+*/
+message BaseUserInfo {
+	enum CtrlFlag {
+		SHOW_WX_IMG = 0x1;			// 显示微信头像
+		MASK_NICKNAME = 0x2;		// 昵称打码(昵***称)
+	};
+	enum UserType{
+		UNKNOW = 0;	//未知
+		Normal = 1;	//正常类型
+
+		Robot=10;	//机器人
+	};
+	optional uint64   user_id =1;         //用户ID 
+	optional uint64   game_id=2;			//数字ID
+	optional uint32	gender=3;			//性别
+
+	optional uint32   market_id=6;		//所属渠道
+	optional uint32   face_id=7;			//头像id
+	optional string   custom_face=8;		//自定义的图像地址
+	optional string   nick_name=9;		//昵称
+
+	optional UserType user_type=12;		//用户类别？
+  optional uint32   site_id=13;         //site id
+
+  optional string	register_data =19;   //注册时间
+  optional uint32	ctrl_flag = 21;		 // 控制标志 见CtrlFlag枚举
+
+  //add by yx 2019-09-19
+  optional string login_ways = 22; //登录方式(91account,phonenumber,xiaomi,vivo,oppo,huawei,weixin,weibo,alipay...)
+  //add by yyf 2019-10-08
+  optional  uint32  user_level=23;  //用户等级 1-9之间
+
+  optional uint32 reg_market_id=24;//注册主渠道
+  optional uint32 reg_site_id=25;//注册子渠道
+}
+
+//玩家附加信息
+message UserAdditionInfo{
+   optional uint32 avatar     = 1;//头像框
+   optional uint32 titleid    = 2;//称号id
+   optional uint32 champion   = 3;//冠军次数
+   optional uint32 bestrank   = 4;//最佳排名
+	optional uint32 toplink   = 5;//最高连胜
+}
+
+/*
+简化的用户信息，指其他玩家的信息
+主要用于游戏服务器
+*/
+
+message UserRoomInfo{
+	optional uint64			user_id=1;        		//用户ID
+	optional BaseUserInfo 	base_info =2;
+	optional sint64 		score=3;			 		/// 可能为负的积分数
+	optional uint64 		exp=4;				 /// 那个经验
+  	optional int64	 		health=5;         			// 玩家血量
+  	optional bool			is_offline=6	[default=false];		//是否掉线
+	optional uint64 		table_id=7;		//所有桌
+	optional uint32 		seat_index=8;	   //所在位置
+
+    //是否正在参赛中，对于财富类型的自由赛有效
+	optional bool			is_playing=9;
+	optional uint32			lost_count=10;				//玩家总输局
+	optional uint32			draw_count=11;				//玩家总平局
+  	optional uint32			win_count=12;				//玩家总胜局		
+	optional uint32			current_rank=13;			//当前排名
+	optional uint32			winning_streak=14;			//当前连
+	optional uint32			round_count=15;				//当前参与的局数
+
+	//没被带入的财富,即被保留的 2017.9.17 cs 打算增加，来支持某些限制带入
+	optional uint64			health_saving=16;      
+
+	//用户状态
+	// 举手状态= (user_stat &0x01)  ----> =0 表示没有举手， =1 表示举手状态
+	optional uint32			user_stat = 17;      
+
+	optional int32			ad_percent = 18;//看完广告buffer
+	optional int32			share_percent = 19;//分享后buffer
+	//当前参与的轮数
+	optional uint32			turn_count=20;
+	optional int32			shuffle_card_plan_id = 21;	//用户做牌方案ID 0牌库、其余与配置文件对应
+	
+	optional int64			gold_cup_count = 22;//金杯数
+
+   optional UserAdditionInfo addition = 23;     //玩家附加信息(锦标赛+定时赛)
+};
+
+
+/** 
+扩展用户信息
+*/
+message ExtraUserInfo{
+	optional uint64   	user_id=1;
+	optional uint64		spreader=2;
+	optional uint32		birthday=3;
+	optional string   	id_card=4;
+	optional string   	real_name=5;
+
+	optional string   	mobile=9; 						//手机
+	optional uint32   	bind_flag=13;					//绑定标识
+	optional string   	account=14;						//登录账号
+	optional string   	login_pass=15;					//登录密码
+}
+
+/** 游戏特别数据
+主要指成绩记录数据，
+如斗地主的最高倍数与达成时间
+如德州的最大牌型与达成时间
+*/
+message GameRecordData{
+	optional uint32 data_id=1;	
+	optional uint64 data_time=2;
+	optional bytes	data_value =3;
+};
+/*
+主要是用于某些游戏中，要为用户增加一些额外数据项
+*/
+message  GameAttData{
+   optional  uint32  data_id = 1;
+   optional  bytes   data_value = 2;
+};
+/*
+   用户当前连接信息
+*/
+message  UserSessionInfo{
+	optional uint32 gate_id=1;            //来自哪个gate
+	optional uint64 gate_conn_id =2;      //gate 相关连接
+	optional types.ClientOS client_os=3;	//客户端操作系统类型
+	optional uint32 build_no=4;
+	optional uint32 market_id=5;
+	optional string machine_code=8;
+	optional string client_IP = 9;	//客户端的IP
+	optional string client_version=10;
+	optional string machine_name=11;
+	optional string client_guid=12;
+	optional string sim=13;
+	optional uint32 thrid_type=14;
+	optional string thrid_parameter=15;
+	optional string os_name=16;
+
+   optional uint32 loginip_province=17;//登录省份id
+   optional uint32 loginip_city=18;    //登录城市id
+   optional string outer_id=19;        //对应的外部用户渠道id
+   optional bytes logon_msg = 20;     //登录报文 
+   optional string user_center_token = 21;	//从用户中心获取的访问token add cs 2018.12.28
+   optional uint64 login_app_id = 22;      // 登陆的appid
+
+   optional string  client_code = 23;      //client_code
+   optional string  package_name = 24;      //包名(手机版使用)
+};
+
+
+enum EnumFundType{
+   ALL_TYPE = 0;		      //所有类型
+   INDENTIFY_TYPE = 1;		//身份道具 门派、归属地、推广方、门票类
+   MONEY_TYPE = 2;		    //财富道具 币、豆、券… 
+   THIRD_TYPE = 3;		    //第三方领取码 他网的道具或可以通过网址自动传送到外方站网
+   GAMEEXP_TYPE = 4;	    //游戏具体类  经验、大师分、战功、游戏时长、局数、胜负数
+   ATTRIBUTE_TYPE = 5;		//属性类 如在线时长
+   GOODS_TYPE = 6;			  //实物类，如手机等
+   VIRTUAL_TYPE = 7;			//虚拟类，如Q币，充值卡等
+   PACKED_TYPE=8;         //礼包类,这个类型被web使用了，故用下面那个
+   GIFT_TYPE=9;           //福袋类
+   RAND_TYPE=10;          //随机类
+};
+/** 财富类型项 */
+message FundItem{
+/**
+财富ID，100以类进行保留
+=1 表示基础的
+=2 表示game 相关的
+
+    MatchProve= 6,       //比赛券
+    InSureGold= 7,       //保险箱金币
+    RedPackage = 8,       //红包券
+    Diamond = 9,          //钻石(金豆)
+    Gold = 10,            //金币
+    Egg = 11,             //奖券
+    MaxFixedType=20,      //最大固定类型
+
+    见
+    interface/types/matchsystem_define.h
+
+*/
+	optional EnumFundType type=1;
+	optional uint32 id= 2 [default =0];
+   
+	optional uint64 count=3 [default=0];
+	optional string name=4;	
+
+  optional uint32 validity=5; //有效时期
+  optional uint32 fund_type =6; //换成整数
+
+  optional uint64 min_vaue =7;    //对于随机类，这是最小值
+  optional uint64 max_vaue =8;    //对于随机类，这是最大值
+  optional string expire_time = 9;		//道具到期时间
+  optional uint32 expiring_count = 10;	//道具即将到期数量（即下个月就要失效的奖券数量）
+};
+
+/*
+用户当天局数信息,之前为牌库传参，后由大数据自己提供，结构暂时保留
+*/
+message UserDailyDrawInfo{
+	optional uint64 user_id=1;						//用户ID
+	optional int32	plan_id = 2;					//房间planid
+	optional uint32 daily_lost_count=3;				//当日输局
+	optional uint32 daily_draw_count=4;				//当日平局
+  	optional uint32 daily_win_count=5;				//当日赢局
+}
+
+/** 
+游戏中用户信息
+*/
+message GameUserInfo{
+	optional uint64 user_id=1;
+	optional int32  outerid = 3; //93-代表微信用户
+	optional uint32 protect_number=6;  //今日保护局数，个数与players一致
+	optional uint32 total_protect_number=7; //累计保护次数
+	optional int32  state = 8; //保护状态.保护次数用完,会关闭的.1-正常保护,0-保护关闭
+	optional uint32 total_round_number=9; //累计次数
+	optional UserRoomInfo base_info=10;    //用户基本信息
+	optional UserSessionInfo session_info=11;    //用户session信息
+	optional int32  param = 12;         //附加信息：换牌状态
+	optional int32 param2 = 14;		//附加信息2：明牌开始=1，普通开始=0
+	optional string param3 = 15;		//附加信息3
+	optional string param4 = 16;		//附加信息4
+}
+
+
+//add by yyf 加新财富管理服务器的相关内容
+//财富类型定义
+enum EnumFundManageType{
+          AI_ALL_TYPE                =  0;		      //所有类型
+          SETTLEACCOUNTS_TYPE        =  1;          //结算类 如包子，金币，金豆等可用于单局结算
+          KIND_TYPE                  =  2;          //实物类，一般可以直接兑换成实物
+          GAMEATTRIBUTE_TYPE         =  3;          //游戏相关属性类 单纯跟某游戏相关
+          GAMEPROP_TYPE              =  4;           //游戏相关使用道具
+
+};
+
+//财富公共属性定义
+/*
+  下面定义的增加最大值与减少最大值与BUSINEES_FUND中的最大值，是二个控制关系
+  一般来说，这个大值大于等于BUSINEES_FUND中的二个值
+
+*/
+message FundServerItemdef{
+         optional uint32            fund_id           =  1;          //财富ID
+         optional uint32            fund_type         =  2;          //类型
+         optional string            fund_name         =  3;          //财富名称
+         optional int32             validity_flag     =  4;          //有效期 0:不过期
+         optional int32             show_flag         =  5;          //背包 0:不显示 1：显示
+         optional int32             box_flag          =  6;          //0:不是宝箱 1:晋通宝箱 2:概率宝箱
+         optional int64             max_inc           =  7;          //允许增加的最大值
+         optional int64             max_dec           =  8;          //允许减少的最大值
+		 optional int64             fund_attribute    =  9;          //财富属性值
+         optional int32             negative_flag     =  10;          //是否可以为负
+         optional string            show_icon         =  11;         // 关联的图片地址
+         optional int32             eff_time          =  12;         //有效期
+
+};
+
+//给服务器的 用户财富数据 主要是除了银票以外的
+//银票将定义二种类型 的FUND_ID,一种是昨天的，一种是今天的
+message  FundDataItem{
+      optional   uint32               fund_id       =1;     //对应该财富的属性数据
+      optional   int64                fund_count    =2;     //财富数量
+	  optional   string               over_time    	=3;     //过期时间
+};
+
+//buff
+message Buff{
+   optional int32 buffer_id = 1; //Buff ID
+   optional int32 item_id = 2;   //绑定的物品ID
+   optional uint64 begin_time=3; //起始时间
+   optional uint64 end_time=4;   //结束时间
+};
+
+//自定义信息扩展
+message UserBaseInfoEx{
+   optional uint64 user_id    = 1;  //用户id
+   optional string nick_name  = 2;  //昵称
+   optional uint64 exp_cur    = 3;  //当前等级经验
+   optional uint64 exp_total  = 4;  //获得总经验
+   optional uint64 level      = 5;  //当前等级
+
+   optional int32 role_id     = 6;  //角色ID
+   optional int32 skin_id     = 7;  //皮肤ID
+
+   optional int32 pk_level    = 8;  //段位
+   optional int32 pk_star     = 9;  //段位星星
+   optional int32 pk_title    = 10; //段位头衔
+
+   repeated Buff  buff        = 11; //道具Buff
+
+   optional uint64 game_id    = 12; //玩家ID的另一种形式
+   optional uint64 last_login = 13; //最近登录时间
+   optional uint64 last_logout= 14; //最近登出时间
+
+   repeated int32 tag         = 15; //标签
+
+   optional uint64 game_total_count=16;      //游戏总局数
+
+   optional uint32 recent_count=17;          //最近一天对局次数
+   optional uint64 recent_day=18;            //最近一天对局日期
+
+   optional uint64 protect_total_count=19;  //保护总次数
+   optional uint32 protect_count=20;         //当日保护总次数
+   optional uint64 protect_day=21;           //更新保护次数时的日期
+
+   //统计
+   optional uint64 game_win_count=22;        //游戏获胜局数
+   optional uint64 game_lose_count=23;       //游戏失败局数
+   optional uint64 game_draw_count=24;       //游戏平局局数
+   optional uint64 game_escape_count=25;     //游戏逃跑局数
+
+   optional uint64 activation_time = 26;     //激活时间
+   optional string register_data =27;        //注册时间
+   optional uint32 market_id=28;		         //所属渠道
+   optional uint32 site_id=29;               //site id
+};
+
+//物品类型
+enum EItemType{
+	ITEM_TYPE_PROP=1;                 //道具
+	ITEM_TYPE_SKIN_CHIP = 2;	         //皮肤碎片
+	ITEM_TYPE_ACTIVITY_MATERIAL = 3;  //活动材料
+}
+
+//广告观看次数
+message ADWatchInfo{
+	optional uint64		ad_id=1;						//广告id 1免输、2翻倍 可扩展...
+	optional uint64		day_times=2;					//今日观看次数
+	optional uint64		total_times=3;					//历史观看次数
+	optional uint32		sour_app_id=4;					//发起APPID,目前只有房间
+	optional uint64		limit_watch_times=5;			//今日观看次数
+}
+
+//////////////////end/////////////////////

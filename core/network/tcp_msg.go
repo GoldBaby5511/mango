@@ -18,7 +18,7 @@ const (
 const (
 	NullType          uint32 = 0  //空类型l
 	CMDServiceManager uint32 = 3  //服务管理
-	Logger            uint32 = 8  //日志
+	CMDLogger         uint32 = 8  //日志
 	CMDRouter         uint32 = 10 //router
 	CMDAppFrame       uint32 = 11
 	CMDGate           uint32 = 12 //gate
