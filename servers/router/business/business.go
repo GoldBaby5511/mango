@@ -145,7 +145,17 @@ func handleRegisterAppReq(args []interface{}) {
 	mutexRegData.Lock()
 	if v, ok := appRegData[regKey]; ok {
 		if v.regInfo.regToken != m.GetReregToken() {
-			log.Warning("连接", "已经注册过了")
+			mutexRegData.Unlock()
+			resultMsg := fmt.Sprintf("该服务已注册,appType=%v,appId=%v,regKey=%v",
+				m.GetAppType(), m.GetAppId(), regKey)
+			log.Warning("连接", resultMsg)
+
+			var rsp router.RegisterAppRsp
+			rsp.RegResult = proto.Uint32(1)
+			rsp.ReregToken = proto.String(resultMsg)
+			rsp.RouterId = proto.Uint32(conf.Server.AppID)
+			a.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDAppRegRsp), &rsp)
+
 			a.Close()
 			return
 		} else {
@@ -160,7 +170,7 @@ func handleRegisterAppReq(args []interface{}) {
 	appRegData[regKey].regInfo = appRegInfo{m.GetAppType(), m.GetAppId(), token, m.GetAppName(), registered}
 	mutexRegData.Unlock()
 
-	log.Debug("注册", "服务注册,appType=%v,appId%v,regKey=%v",
+	log.Debug("注册", "服务注册,appType=%v,appId=%v,regKey=%v",
 		m.GetAppType(), m.GetAppId(), regKey)
 
 	var rsp router.RegisterAppRsp

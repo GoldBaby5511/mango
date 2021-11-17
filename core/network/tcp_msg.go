@@ -16,7 +16,8 @@ const (
 
 //消息类型
 const (
-	NullType          uint32 = 0  //空类型l
+	NullType          uint32 = 0  //空类型
+	CMDConfig         uint32 = 1  //配置中心
 	CMDServiceManager uint32 = 3  //服务管理
 	CMDLogger         uint32 = 8  //日志
 	CMDRouter         uint32 = 10 //router
@@ -27,6 +28,7 @@ const (
 
 //apptype类型
 const (
+	AppConfig          uint32 = 1
 	AppGate            uint32 = 5
 	AppRouter          uint32 = 6
 	AppLogin           uint32 = 7

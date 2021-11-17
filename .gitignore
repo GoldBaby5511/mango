@@ -1,5 +1,6 @@
 .idea
 *.exe
+client/
 servers/gateway/log/
 servers/logger/log/
 servers/login/log/
