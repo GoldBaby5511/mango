@@ -169,10 +169,9 @@ func SetScreenPrint(print bool) {
 
 func nowTimeString() string {
 	now := time.Now()
-	timeerStr := fmt.Sprintf("%v-%02d-%02d %02d:%02d:%02d.%09d",
+	timeStr := fmt.Sprintf("%v-%02d-%02d %02d:%02d:%02d.%09d",
 		now.Year(), now.Month(), now.Day(), now.Hour(), now.Minute(), now.Second(), now.Nanosecond())
-
-	return timeerStr
+	return timeStr
 }
 
 func printLog(classname, file, format string, line, level int, a ...interface{}) {

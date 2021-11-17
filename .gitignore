@@ -1,2 +1,6 @@
 .idea
-servers/gateway/log
+*.exe
+servers/gateway/log/
+servers/logger/log/
+servers/login/log/
+servers/router/log/

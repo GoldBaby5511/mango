@@ -2,6 +2,7 @@ package business
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"path"
 	"reflect"
@@ -105,7 +106,8 @@ func disconnect(args []interface{}) {
 	a := args[g.AgentIndex].(n.Agent)
 	if v, ok := appConnData[a]; ok {
 		regKey := makeRegKey(v.regInfo.appType, v.regInfo.appId)
-		log.Info("连接", "再见,appType=%d,appId=%d,regKey=%d", v.regInfo.appType, v.regInfo.appId, regKey)
+		log.Info("连接", "再见,appName=%v,appType=%d,appId=%d,regKey=%d",
+			v.regInfo.appName, v.regInfo.appType, v.regInfo.appId, regKey)
 
 		//关闭文件
 		if v.baseFile != nil {
@@ -121,8 +123,6 @@ func handleLogReq(args []interface{}) {
 	m := args[n.DATA_INDEX].(*logger.LogReq)
 	a := args[n.AGENT_INDEX].(n.Agent)
 
-	log.Debug("收到", "收到消息")
-
 	mutexConnData.Lock()
 	defer mutexConnData.Unlock()
 
@@ -133,12 +133,7 @@ func handleLogReq(args []interface{}) {
 		return
 	}
 
-	//是否已注册
-	if appConnData[a].regInfo.curStep == registered {
-		return
-	}
-
-	log.Debug("写日志", "收到了,Level=%v,Appname=%v", m.GetLogLevel(), m.GetSrcAppname())
+	log.Debug("写日志", "收到,Level=%v,Appname=%v,Content=%s", m.GetLogLevel(), m.GetSrcAppname(), string(m.GetContent()))
 
 	if appConnData[a].baseFile == nil {
 		pathname := ""
@@ -162,10 +157,11 @@ func handleLogReq(args []interface{}) {
 			return
 		}
 
-		log.Debug("日志", "创建文件,%v", pathname)
-
 		appConnData[a].baseFile = file
 		appConnData[a].pathname = pathname
+
+		token := fmt.Sprintf("gb%x%x%x", rand.Int(), time.Now().UnixNano(), rand.Int())
+		appConnData[a].regInfo = appRegInfo{m.GetSrcApptype(), m.GetSrcAppid(), token, m.GetSrcAppname(), registered}
 
 	} else {
 		//60M分割文件 1024*1024*60
