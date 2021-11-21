@@ -1,0 +1,48 @@
+syntax = "proto2";
+package bs.config;
+option go_package ="/config";
+
+enum CMDID_Config {
+	IDApolloCfgReq               = 1;       // 请求配置
+    IDApolloCfgRsp               = 2;       // 配置响应
+    IDApolloCfgRspFin            = 3;       // 配置响应结束
+}
+
+//配置中心消息
+message ApolloCfgReq {
+	enum EnumSubscribe {
+		NOT_SUBSCRIBE	= 0;		// 不订阅
+		SUBSCRIBE		= 1;		// 订阅，成功就下发配置
+		UNSUBSCRIBE		= 2;		// 取消订阅
+		NEED_RSP		= 4;		// 要求回复，下发配置
+		NO_RSP			= 8;		// 不要回复，不下发配置
+	}
+	optional string name_space		= 1;		// 要读取的配置的命名空间
+	optional string key_name		= 2;		// 键名 空表示命名空间下的所有键
+	optional uint32 subscribe		= 3;		// 是否订阅配置的更新 见EnumSubscribe
+	optional uint32 app_type		= 4;		// AppType
+	optional uint32 app_id			= 5;		// AppID
+	optional uint32 sub_app_type	= 6;		// AppType
+	optional uint32 sub_app_id		= 7;		// AppID
+	optional uint32 cfg_size		= 8;		// 指定响应消息中配置的大小
+}
+
+//配置响应
+message ApolloCfgRsp {
+	optional string name_space		= 1;		// 要读取的配置的命名空间
+	optional string key_name		= 2;		// 键名
+	repeated string key				= 3;		// 键
+	repeated string value			= 4;		// 值
+	optional uint32 sub_app_type	= 5;		// AppType subscribe=0，或者=1时的第一个回包时会和请求的一样，否则为订阅信息中记录的值
+	optional uint32 sub_app_id		= 6;		// AppID subscribe=0，或者=1时的第一个回包时会和请求的一样，否则为订阅信息中记录的值
+	optional uint64 packet_id		= 7;		// 分包标识
+}
+
+//配置响应完成
+message ApolloCfgRspFin {
+	optional string name_space		= 1;		// 要读取的配置的命名空间
+	optional string key_name		= 2;		// 键名
+	optional uint32 sub_app_type	= 3;		// AppType 
+	optional uint32 sub_app_id		= 4;		//
+	required uint64 packet_id		= 5;		// 分包标识
+}
