@@ -1,0 +1,57 @@
+{
+    "AppName": "AppConfig",
+    "AppType": 1,
+    "AppID": 300,
+    "TCPClientAddr": "127.0.0.1:10001",
+    "LogServerAddr": "127.0.0.1:20001",
+    "WorkDB":"",
+    "MaxConnNum": 20000,
+    "ConsolePort": 0,
+    "ScreenPrint": true,
+    "UseApollo": false,
+    "Config": {
+        "appId": "xlddz-apollo",
+        "cluster": "dev",
+        "ip": "http://192.168.22.47:8080",
+        "namespaceName": "application",
+        "isBackupConfig": true,
+        "secret": ""
+    },
+    "CommonServers": [
+        {
+            "appid":"",
+            "cluster":"",
+            "namespaceName":"common-server-login.json",
+            "servertype":7,
+            "serverid":0
+        },
+		{
+            "appid":"",
+            "cluster":"",
+            "namespaceName":"common-server-router.json",
+            "servertype":6,
+            "serverid":0
+        },
+        {
+            "appid":"",
+            "cluster":"10100",
+            "namespaceName":"xlddz-gateway-ddz.gateway-100.json",
+            "servertype":5,
+            "serverid":100
+        },
+        {
+            "appid":"",
+            "cluster":"",
+            "namespaceName":"xlddz-gateway-ddz.gateway-101.json",
+            "servertype":5,
+            "serverid":101
+        },
+        {
+            "appid":"",
+            "cluster":"",
+            "namespaceName":"xlddz-gateway-ddz.gateway-102.json",
+            "servertype":5,
+            "serverid":102
+        }
+    ]
+}

@@ -1,6 +1,6 @@
 {
     "AppName": "Logger",
-    "AppType": 0,
+    "AppType": 2,
     "AppID": 0,
     "TCPAddr": "0.0.0.0:20001",
 	"TCPClientAddr": "",

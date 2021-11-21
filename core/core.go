@@ -3,20 +3,21 @@ package core
 import (
 	"os"
 	"os/signal"
+	"xlddz/core/conf"
 	"xlddz/core/log"
 	"xlddz/core/module"
 )
 
-func Run(mods ...module.Module)  {
+func Run(mods ...module.Module) {
 	// logger
-	logger, err := log.New()
+	logger, err := log.New(conf.AppName)
 	if err != nil {
 		panic(err)
 	}
 	log.Export(logger)
 	defer logger.Close()
 
-	for i:=0;i<len(mods);i++{
+	for i := 0; i < len(mods); i++ {
 		module.Register(mods[i])
 	}
 

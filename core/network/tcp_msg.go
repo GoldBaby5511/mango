@@ -29,6 +29,7 @@ const (
 //apptype类型
 const (
 	AppConfig          uint32 = 1
+	AppLogger          uint32 = 2
 	AppGate            uint32 = 5
 	AppRouter          uint32 = 6
 	AppLogin           uint32 = 7

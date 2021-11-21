@@ -7,7 +7,6 @@ import (
 	"path"
 	"runtime"
 	"time"
-	"xlddz/core/conf"
 	"xlddz/core/util"
 )
 
@@ -35,12 +34,12 @@ type Logger struct {
 	pathname string
 }
 
-func New() (*Logger, error) {
+func New(appName string) (*Logger, error) {
 
 	pathname := ""
 	curPath, err := util.GetCurrentPath()
 	if err == nil {
-		pathname = curPath + "log/" + conf.AppName + "/"
+		pathname = curPath + "log/" + appName + "/"
 		_, err := os.Stat(pathname)
 		if err != nil && os.IsNotExist(err) {
 			err = os.MkdirAll(pathname, os.ModePerm)

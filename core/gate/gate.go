@@ -8,6 +8,7 @@ import (
 	"time"
 	"xlddz/core/chanrpc"
 	"xlddz/core/conf"
+	"xlddz/core/conf/apollo"
 	"xlddz/core/log"
 	n "xlddz/core/network"
 	"xlddz/protocol/logger"
@@ -29,7 +30,65 @@ const (
 var (
 	routerMsgChan      []chan []interface{} //router消息并发通道
 	cbRouterDisconnect []func()             //router断开回调
+	tcpLog             *n.TCPClient
 )
+
+func init() {
+	if tcpLog == nil {
+		tcpLog = new(n.TCPClient)
+	}
+	cbRouterDisconnect = append(cbRouterDisconnect, apollo.RouterDisconnect)
+	apollo.RegPublicCB(ApolloNotify)
+}
+
+//apollo配置第一次获取成功回调
+func ApolloNotify(k apollo.ConfKey, v apollo.ConfValue) {
+
+	if tcpLog == nil {
+		tcpLog = new(n.TCPClient)
+	}
+
+	if k.Key == "日志服务器地址" {
+		log.Debug("回调", "%v,%v", k, v)
+	}
+
+	//得到日志服务
+	if conf.AppType != n.AppLogger && k.Key == "日志服务器地址" && v.Value != "" &&
+		v.RspCount == 1 && tcpLog != nil && !tcpLog.IsRunning() {
+		LogAddr := v.Value
+		tcpLog.Addr = LogAddr
+		tcpLog.NewAgent = func(conn *n.TCPConn) n.Agent {
+			a := &agent{conn: conn, agentType: AGENT_TYPE_LOGGER}
+			log.Info("gate", "日志服务器连接成功,Addr=%v", LogAddr)
+			log.Info("gate", "服务启动完成,阔以开始了... ...")
+
+			callChan := make(chan log.LogInfo)
+			//这里边不能再有log调用否则就是死循环
+			go func() {
+				for {
+					logInfo := <-callChan
+
+					var logReq logger.LogReq
+					logReq.FileName = proto.String(logInfo.File)
+					logReq.LineNo = proto.Uint32(uint32(logInfo.Line))
+					logReq.SrcApptype = proto.Uint32(conf.AppType)
+					logReq.SrcAppid = proto.Uint32(conf.AppID)
+					logReq.Content = []byte(logInfo.LogStr)
+					logReq.ClassName = []byte(logInfo.Classname)
+					logReq.LogLevel = proto.Uint32(uint32(logInfo.Level))
+					logReq.TimeMs = proto.Uint64(logInfo.TimeMs)
+					logReq.SrcAppname = proto.String(conf.AppName)
+					a.SendData(n.CMDLogger, uint32(logger.CMDID_Logger_IDLogReq), &logReq)
+				}
+			}()
+
+			log.SetLogCallBack(callChan)
+			return a
+		}
+
+		tcpLog.Start()
+	}
+}
 
 //Gate 服务端网关
 type Gate struct {
@@ -101,38 +160,38 @@ func (gate *Gate) Run(closeSig chan bool) {
 	}
 
 	//log连接
-	var tcpLog *n.TCPClient
-	if gate.LogAddr != "" {
-		tcpLog = new(n.TCPClient)
-		tcpLog.Addr = gate.LogAddr
-		tcpLog.NewAgent = func(conn *n.TCPConn) n.Agent {
-			a := &agent{conn: conn, gate: gate, agentType: AGENT_TYPE_LOGGER}
-			log.Info("agent", "日志服务器连接成功,Addr=%v", a.gate.LogAddr)
-
-			callChan := make(chan log.LogInfo)
-			//这里边不能再有log调用否则就是死循环
-			go func() {
-				for {
-					logInfo := <-callChan
-
-					var logReq logger.LogReq
-					logReq.FileName = proto.String(logInfo.File)
-					logReq.LineNo = proto.Uint32(uint32(logInfo.Line))
-					logReq.SrcApptype = proto.Uint32(conf.AppType)
-					logReq.SrcAppid = proto.Uint32(conf.AppID)
-					logReq.Content = []byte(logInfo.LogStr)
-					logReq.ClassName = []byte(logInfo.Classname)
-					logReq.LogLevel = proto.Uint32(uint32(logInfo.Level))
-					logReq.TimeMs = proto.Uint64(logInfo.TimeMs)
-					logReq.SrcAppname = proto.String(conf.AppName)
-					a.SendData(n.CMDLogger, uint32(logger.CMDID_Logger_IDLogReq), &logReq)
-				}
-			}()
-
-			log.SetLogCallBack(callChan)
-			return a
-		}
-	}
+	//var tcpLog *n.TCPClient
+	//if gate.LogAddr != "" {
+	//	tcpLog = new(n.TCPClient)
+	//	tcpLog.Addr = gate.LogAddr
+	//	tcpLog.NewAgent = func(conn *n.TCPConn) n.Agent {
+	//		a := &agent{conn: conn, gate: gate, agentType: AGENT_TYPE_LOGGER}
+	//		log.Info("agent", "日志服务器连接成功,Addr=%v", a.gate.LogAddr)
+	//
+	//		callChan := make(chan log.LogInfo)
+	//		//这里边不能再有log调用否则就是死循环
+	//		go func() {
+	//			for {
+	//				logInfo := <-callChan
+	//
+	//				var logReq logger.LogReq
+	//				logReq.FileName = proto.String(logInfo.File)
+	//				logReq.LineNo = proto.Uint32(uint32(logInfo.Line))
+	//				logReq.SrcApptype = proto.Uint32(conf.AppType)
+	//				logReq.SrcAppid = proto.Uint32(conf.AppID)
+	//				logReq.Content = []byte(logInfo.LogStr)
+	//				logReq.ClassName = []byte(logInfo.Classname)
+	//				logReq.LogLevel = proto.Uint32(uint32(logInfo.Level))
+	//				logReq.TimeMs = proto.Uint64(logInfo.TimeMs)
+	//				logReq.SrcAppname = proto.String(conf.AppName)
+	//				a.SendData(n.CMDLogger, uint32(logger.CMDID_Logger_IDLogReq), &logReq)
+	//			}
+	//		}()
+	//
+	//		log.SetLogCallBack(callChan)
+	//		return a
+	//	}
+	//}
 
 	//router连接
 	var wg sync.WaitGroup
@@ -148,6 +207,7 @@ func (gate *Gate) Run(closeSig chan bool) {
 				gate.AgentChanRPC.Go(RouterConnected, a)
 			}
 
+			apollo.SetRouterAgent(a)
 			log.Info("agent", "Router连接成功,Addr=%v", a.gate.TCPClientAddr)
 
 			//连接成功发送注册命令
@@ -209,9 +269,9 @@ func (gate *Gate) Run(closeSig chan bool) {
 	if tcpServer != nil {
 		tcpServer.Start()
 	}
-	if tcpLog != nil {
-		tcpLog.Start()
-	}
+	//if tcpLog != nil {
+	//	tcpLog.Start()
+	//}
 	if tcpRouterClient != nil {
 		tcpRouterClient.Start()
 	}
@@ -330,24 +390,27 @@ func (a *agent) Run() {
 }
 
 func (a *agent) OnClose() {
-	if a.gate.AgentChanRPC != nil {
-		err := a.gate.AgentChanRPC.Call0(Disconnect, a, a.id)
-		if err != nil {
-			log.Error("agent", "chanrpc error: %v", err)
-		}
-	}
-
-	//连接关闭了
 	if a.agentType == AGENT_TYPE_LOGGER {
 		log.SetLogCallBack(nil)
 		log.Info("agent", "日志服务器断开")
-	} else if a.agentType == AGENT_TYPE_ROUTER {
-		//router断了世界应该被重启一次
-		log.Error("agent", "异常,与router连接断开,世界需要重启... ...")
-		for _, cb := range cbRouterDisconnect {
-			cb()
+	} else {
+		if a.gate.AgentChanRPC != nil {
+			err := a.gate.AgentChanRPC.Call0(Disconnect, a, a.id)
+			if err != nil {
+				log.Error("agent", "chanrpc error: %v", err)
+			}
+		}
+
+		//连接关闭了
+		if a.agentType == AGENT_TYPE_ROUTER {
+			//router断了世界应该被重启一次
+			log.Error("agent", "异常,与router连接断开,世界需要重启... ...")
+			for _, cb := range cbRouterDisconnect {
+				cb()
+			}
 		}
 	}
+
 }
 
 func (a *agent) LocalAddr() net.Addr {
@@ -384,6 +447,11 @@ func (a *agent) preDealFrameMsg(cmd *n.TCPCommand, data []byte) bool {
 			if m.GetRegResult() == 0 {
 				log.Info("agent", "注册成功,regToken=%v,RouterId=%v",
 					m.GetReregToken(), m.GetRouterId())
+
+				//获取配置
+				if n.AppConfig != conf.AppType {
+					apollo.RegisterConfig("", conf.AppType, conf.AppID, nil)
+				}
 			} else {
 				log.Warning("agent", "注册失败,RouterId=%v,原因=%v", m.GetRouterId(), m.GetReregToken())
 			}
@@ -395,6 +463,14 @@ func (a *agent) preDealFrameMsg(cmd *n.TCPCommand, data []byte) bool {
 			log.Debug("agent", "app状态改变 AppState=%v,RouterId=%v,AppType=%v,AppId=%v",
 				m.GetAppState(), m.GetRouterId(), m.GetAppType(), m.GetAppId())
 		case uint16(router.CMDID_Router_IDDataMessageReq): //普通消息
+			var m router.DataTransferReq
+			_ = proto.Unmarshal(data, &m)
+			//配置中心消息
+			if m.GetDataCmdkind() == n.CMDConfig && n.AppConfig != conf.AppType {
+				apollo.ProcessReq(&m)
+				return true
+			}
+
 			//业务层处理
 			return false
 		case uint16(router.CMDID_Router_IDPulseNotify): //心跳

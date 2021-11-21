@@ -3,6 +3,7 @@ module xlddz
 go 1.15
 
 require (
+	github.com/fsnotify/fsnotify v1.5.1
 	github.com/golang/protobuf v1.5.2
 	github.com/gorilla/websocket v1.4.2
 	github.com/spf13/viper v1.9.0
