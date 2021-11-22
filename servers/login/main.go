@@ -32,12 +32,6 @@ func main() {
 		conf.Server.AppType = v
 	}
 
-	lconf.ConsolePort = conf.Server.ConsolePort
-	lconf.AppName = conf.Server.AppName
-	lconf.AppID = conf.Server.AppID
-	lconf.AppType = conf.Server.AppType
-	lconf.ApolloDefaultNamespace = conf.Server.AppName
-
 	log.Info("主流程", "服务器启动,AppName=%v,AppType=%v,AppID=%v", lconf.AppName, lconf.AppType, lconf.AppID)
 
 	core.Run(

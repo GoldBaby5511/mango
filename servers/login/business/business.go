@@ -28,7 +28,6 @@ func (m *Module) OnInit() {
 	m.Gate = &gate.Gate{
 		Processor:     p,
 		TCPClientAddr: conf.Server.TCPClientAddr,
-		LogAddr:       conf.Server.LogServerAddr,
 	}
 }
 

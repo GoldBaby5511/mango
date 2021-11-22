@@ -54,11 +54,7 @@ func (m *Module) OnInit() {
 
 		//Use your apollo key to test
 		cache := client.GetConfigCache(c.NamespaceName)
-		value, _ := cache.Get("common-server")
-		log.Debug("测试", "NS=%v, value=%v", c.NamespaceName, value)
-
 		cache.Range(func(key, value interface{}) bool {
-			fmt.Println("key : ", key, ", value :", value)
 
 			listener.configs[key.(string)] = value.(string)
 
@@ -72,7 +68,7 @@ func (m *Module) OnInit() {
 					return false
 				}
 				for i, v := range s {
-					log.Debug("key", "i = %v,len=%v,info=%v", i, len(s), v)
+					log.Debug("key", "读取普通服务,i = %v,len=%v,info=%v", i, len(s), v)
 
 					c := &aConfig.AppConfig{
 						AppID:          v.Appid,
@@ -81,16 +77,25 @@ func (m *Module) OnInit() {
 						NamespaceName:  v.Ns,
 						IsBackupConfig: true,
 					}
-					listener := newListener(c, v)
+
 					client, _ := agollo.StartWithConfig(func() (*aConfig.AppConfig, error) {
+						log.Debug("StartWithConfig", "StartWithConfig,c=%v", c)
 						return c, nil
 					})
-					client.AddChangeListener(listener)
+
+					l := newListener(c, v)
+					client.AddChangeListener(l)
 					cache := client.GetConfigCache(c.NamespaceName)
-					log.Debug("测试", "NS=%v", c.NamespaceName)
-					value, _ := cache.Get("appid")
-					value2, _ := cache.Get("title")
-					log.Debug("测试", "试试呗,value=%v,value2=%v", value, value2)
+					cache.Range(func(key, value interface{}) bool {
+						//fmt.Println("key : ", key, ", value :", value)
+
+						l.configs[key.(string)] = value.(string)
+						return true
+					})
+					listenerList = append(listenerList, l)
+
+					log.Debug("创建", "创建,appType=%v,appId=%v,len=%v",
+						l.appType, l.appId, len(listenerList))
 				}
 			case "日志服务器地址":
 				k := apollo.ConfKey{Key: "日志服务器地址"}
@@ -116,8 +121,8 @@ func (m *Module) OnInit() {
 			l.listenChange()
 			listenerList = append(listenerList, l)
 
-			log.Debug("创建", "创建,%v,%v,appType=%v,appId=%v,len=%v",
-				&l, &l.changeChan, l.appType, l.appId, len(listenerList))
+			log.Debug("创建", "创建,appType=%v,appId=%v,len=%v",
+				l.appType, l.appId, len(listenerList))
 		}
 	}
 

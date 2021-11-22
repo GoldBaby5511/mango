@@ -129,7 +129,7 @@ type LogInfo struct {
 var (
 	gLogger                *Logger                                               = nil
 	gChanCall              chan LogInfo                                          = nil
-	gScreenPrint           bool                                                  = false
+	gScreenPrint           bool                                                  = true
 	ApolloGetConfigAsInt64 func(nameSpace, key string, defaultValue int64) int64 = nil
 	gtempLogInfo           []LogInfo
 )

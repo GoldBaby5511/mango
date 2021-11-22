@@ -1,7 +1,7 @@
 {
     "AppName": "AppConfig",
     "AppType": 1,
-    "AppID": 300,
+    "AppID": 1,
     "TCPClientAddr": "127.0.0.1:10001",
     "LogServerAddr": "127.0.0.1:20001",
     "WorkDB":"",

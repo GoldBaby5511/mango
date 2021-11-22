@@ -2,10 +2,5 @@
     "AppName": "AppLogin",
     "AppType": 7,
     "AppID": 30,
-    "TCPClientAddr": "127.0.0.1:10001",
-    "LogServerAddr": "127.0.0.1:20001",
-    "WorkDB":"",
-    "MaxConnNum": 20000,
-    "ConsolePort": 0,
-    "ScreenPrint": true
+    "TCPClientAddr": "127.0.0.1:10001"
 }
