@@ -233,10 +233,10 @@ func (c *CommandShowLog) run(args []string) string {
 		return "参数非法,关闭:showlog 0,打开:showlog 1"
 	}
 	output := "开始打印"
-	print := true
+	print := 1
 	if args[0] == "0" {
 		output = "关闭打印"
-		print = false
+		print = 0
 	}
 
 	log.SetScreenPrint(print)

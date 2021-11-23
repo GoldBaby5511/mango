@@ -10,13 +10,11 @@ import (
 
 var Server struct {
 	TCPClientAddr string
-	LogServerAddr string
 	AppType       uint32
 	AppID         uint32
 	AppName       string
 	MaxConnNum    int
 	ConsolePort   int
-	WorkDB        string
 	ScreenPrint   bool
 	UseApollo     bool `default:"false" json:"UseApollo"`
 	Config        aConfig.AppConfig
@@ -46,8 +44,6 @@ func init() {
 	lconf.AppName = Server.AppName
 	lconf.AppID = Server.AppID
 	lconf.AppType = Server.AppType
-	lconf.ApolloDefaultNamespace = Server.AppName
 	lconf.RouterGoroutineNum = 1
-	log.SetScreenPrint(Server.ScreenPrint)
 	log.Info("jsonconf", "配置文件载入成功%v", Server)
 }

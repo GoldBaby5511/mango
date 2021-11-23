@@ -66,11 +66,9 @@ type Gate struct {
 
 func (m *Gate) OnInit() {
 	m.Gate = &g.Gate{
-		AgentChanRPC:  skeleton.ChanRPCServer,
-		Processor:     processor,
-		TCPAddr:       conf.Server.TCPAddr,
-		TCPClientAddr: conf.Server.TCPClientAddr,
-		LogAddr:       conf.Server.LogServerAddr,
+		AgentChanRPC: skeleton.ChanRPCServer,
+		Processor:    processor,
+		TCPAddr:      conf.Server.TCPAddr,
 	}
 }
 

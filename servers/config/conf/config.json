@@ -3,11 +3,8 @@
     "AppType": 1,
     "AppID": 1,
     "TCPClientAddr": "127.0.0.1:10001",
-    "LogServerAddr": "127.0.0.1:20001",
-    "WorkDB":"",
     "MaxConnNum": 20000,
     "ConsolePort": 0,
-    "ScreenPrint": true,
     "UseApollo": false,
     "Config": {
         "appId": "xlddz-apollo",

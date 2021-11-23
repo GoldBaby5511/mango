@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"sync"
 	"time"
+	"xlddz/core/conf/apollo"
 	g "xlddz/core/gate"
 	"xlddz/core/log"
 	"xlddz/core/module"
@@ -72,11 +73,9 @@ type Gate struct {
 
 func (m *Gate) OnInit() {
 	m.Gate = &g.Gate{
-		AgentChanRPC:  skeleton.ChanRPCServer,
-		Processor:     processor,
-		TCPAddr:       conf.Server.TCPAddr,
-		TCPClientAddr: conf.Server.TCPClientAddr,
-		LogAddr:       conf.Server.LogServerAddr,
+		AgentChanRPC: skeleton.ChanRPCServer,
+		Processor:    processor,
+		TCPAddr:      conf.Server.TCPAddr,
 	}
 }
 
@@ -214,6 +213,8 @@ func handleDataTransferReq(args []interface{}) {
 	//目的判断
 	if m.GetDestApptype() == n.AppRouter {
 		switch m.GetDataCmdkind() {
+		case n.CMDConfig:
+			apollo.ProcessReq(m)
 		default:
 
 		}

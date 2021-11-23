@@ -2,11 +2,5 @@
     "AppName": "Logger",
     "AppType": 2,
     "AppID": 0,
-    "TCPAddr": "0.0.0.0:20001",
-	"TCPClientAddr": "",
-    "LogServerAddr": "",
-	"WorkDB":"",
-    "MaxConnNum": 20000,
-    "ConsolePort": 0,
-    "ScreenPrint": true
+    "TCPAddr": "0.0.0.0:20001"
 }

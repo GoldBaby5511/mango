@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"sync"
+	"time"
 	"xlddz/core/conf"
 	"xlddz/core/log"
 	"xlddz/core/network"
@@ -41,20 +42,20 @@ func SetRouterAgent(a network.Agent) {
 	routeAgent = a
 
 	//连接成功后开启定时订阅
-	//timeInterval := 30 * time.Second
-	//timerHeartbeat := time.NewTimer(timeInterval)
-	//go func(t *time.Timer) {
-	//	for {
-	//		<-t.C
-	//
-	//		//保持订阅
-	//		for key, _ := range regSubList {
-	//			SendSubscribeReq(key, false)
-	//		}
-	//
-	//		t.Reset(timeInterval)
-	//	}
-	//}(timerHeartbeat)
+	timeInterval := 30 * time.Second
+	timer := time.NewTimer(timeInterval)
+	go func(t *time.Timer) {
+		for {
+			<-t.C
+
+			//保持订阅
+			for key, _ := range regSubList {
+				SendSubscribeReq(key, false)
+			}
+
+			t.Reset(timeInterval)
+		}
+	}(timer)
 }
 
 //router断开
@@ -64,10 +65,10 @@ func RouterDisconnect() {
 }
 
 //消息处理
-func ProcessReq(dataTransferReq *router.DataTransferReq) error {
+func ProcessReq(dataReq *router.DataTransferReq) error {
 	//消息处理
-	data := dataTransferReq.GetDataBuff()
-	switch dataTransferReq.GetDataCmdsubid() {
+	data := dataReq.GetDataBuff()
+	switch dataReq.GetDataCmdsubid() {
 	case uint32(config.CMDID_Config_IDApolloCfgRsp): //配置响应
 		var m config.ApolloCfgRsp
 		proto.Unmarshal(data, &m)
@@ -91,6 +92,10 @@ func ProcessReq(dataTransferReq *router.DataTransferReq) error {
 
 		for i := 0; i < len(m.GetKey()); i++ {
 			key := ConfKey{Key: m.GetKey()[i], AppType: m.GetSubAppType(), AppId: m.GetSubAppId()}
+			if m.GetKey()[i] == "LogScreenPrint" {
+				p, _ := strconv.Atoi(m.GetValue()[i])
+				log.SetScreenPrint(p)
+			}
 			mutexConfig.Lock()
 			if _, ok := configValues[key]; ok {
 				configValues[key].Value = m.GetValue()[i]
@@ -106,7 +111,7 @@ func ProcessReq(dataTransferReq *router.DataTransferReq) error {
 			}
 		}
 	default:
-		log.Info("apollo", "apollo,还未处理消息,%d", dataTransferReq.GetDataCmdsubid())
+		log.Info("apollo", "apollo,还未处理消息,%d", dataReq.GetDataCmdsubid())
 	}
 
 	return nil

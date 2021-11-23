@@ -11,8 +11,7 @@ var (
 	RouterGoroutineNum int = 1000 //普通服务协程默认数量
 
 	//服务基础属性
-	ApolloDefaultNamespace string
-	AppName                string
-	AppID                  uint32
-	AppType                uint32
+	AppName string
+	AppID   uint32
+	AppType uint32
 )

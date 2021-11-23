@@ -8,16 +8,11 @@ import (
 )
 
 var Server struct {
-	TCPAddr       string
-	TCPClientAddr string
-	LogServerAddr string
+	AppName       string
 	AppType       uint32
 	AppID         uint32
-	AppName       string
-	MaxConnNum    int
-	ConsolePort   int
-	WorkDB        string
-	ScreenPrint   bool
+	TCPAddr       string
+	TCPClientAddr string
 }
 
 func init() {
@@ -33,6 +28,5 @@ func init() {
 	lconf.AppName = Server.AppName
 	lconf.AppType = Server.AppType
 	lconf.AppID = Server.AppID
-	log.SetScreenPrint(Server.ScreenPrint)
 	log.Info("jsonconf", "配置文件载入成功%v", Server)
 }

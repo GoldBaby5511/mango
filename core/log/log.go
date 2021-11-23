@@ -129,7 +129,7 @@ type LogInfo struct {
 var (
 	gLogger                *Logger                                               = nil
 	gChanCall              chan LogInfo                                          = nil
-	gScreenPrint           bool                                                  = true
+	gScreenPrint           int                                                   = 1
 	ApolloGetConfigAsInt64 func(nameSpace, key string, defaultValue int64) int64 = nil
 	gtempLogInfo           []LogInfo
 )
@@ -162,7 +162,7 @@ func SetLogCallBack(c chan LogInfo) {
 }
 
 //显示日志开关
-func SetScreenPrint(print bool) {
+func SetScreenPrint(print int) {
 	gScreenPrint = print
 }
 
@@ -196,7 +196,7 @@ func printLog(classname, file, format string, line, level int, a ...interface{})
 	}
 
 	//组装格式
-	if gScreenPrint || level >= errorLevel || gChanCall == nil {
+	if gScreenPrint != 0 || level >= errorLevel || gChanCall == nil {
 		//屏幕打印时调用位置不打印了 + fmt.Sprintf(" << %s, line #%d, func: %v ", file, line, runtime.FuncForPC(pc).Name())
 		logLevel := GetLogLevelStr(level)
 

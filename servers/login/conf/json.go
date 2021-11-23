@@ -27,6 +27,5 @@ func init() {
 	lconf.AppName = Server.AppName
 	lconf.AppType = Server.AppType
 	lconf.AppID = Server.AppID
-	//log.SetScreenPrint(Server.ScreenPrint)
 	log.Info("jsonconf", "配置文件载入成功%v", Server)
 }
