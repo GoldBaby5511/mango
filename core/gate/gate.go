@@ -434,35 +434,6 @@ func (a *agent) preDealFrameMsg(cmd *n.TCPCommand, data []byte) bool {
 	return false
 }
 
-//发送消息
-func (a *agent) SendData(mainCmdID, subCmdID uint32, m proto.Message) {
-	data, err := proto.Marshal(m)
-	if err != nil {
-		log.Error("agent", "异常,proto.Marshal %v error: %v", reflect.TypeOf(m), err)
-		return
-	}
-	err = a.conn.WriteMsg(uint16(mainCmdID), uint16(subCmdID), data, nil)
-	if err != nil {
-		log.Error("agent", "write message %v error: %v", reflect.TypeOf(m), err)
-	}
-}
-
-func (a *agent) SendData2App(destAppType, destAppid, mainCmdID, subCmdID uint32, m proto.Message) {
-	//var dataTransferReq router.DataTransferReq
-	dataTransferReq := a.getTranData(destAppid, destAppType, mainCmdID, subCmdID)
-	//dataTransferReq.SrcAppid = proto.Uint32(conf.AppID)
-	//dataTransferReq.SrcApptype = proto.Uint32(conf.AppType)
-	//dataTransferReq.DestAppid = proto.Uint32(destAppid)
-	//dataTransferReq.DestApptype = proto.Uint32(destAppType)
-	//dataTransferReq.DataCmdkind = proto.Uint32(mainCmdID)
-	//dataTransferReq.DataCmdsubid = proto.Uint32(subCmdID)
-	dataTransferReq.DataBuff, _ = proto.Marshal(m)
-	dataTransferReq.DataDirection = proto.Uint32(uint32(router.EnuDataDirection_DT_App2App))
-	cmd := n.TCPCommand{MainCmdID: uint16(n.CMDRouter), SubCmdID: uint16(router.CMDID_Router_IDDataMessageReq)}
-	bm := n.BaseMessage{MyMessage: &dataTransferReq, Cmd: cmd}
-	a.SendMessage(bm)
-}
-
 func (a *agent) SendMessage(bm n.BaseMessage) {
 	m := bm.MyMessage.(proto.Message)
 	data, err := proto.Marshal(m)
@@ -483,46 +454,52 @@ func (a *agent) SendMessage(bm n.BaseMessage) {
 }
 
 func (a *agent) SendMessage2App(destAppType, destAppid uint32, bm n.BaseMessage) {
-	//var dataTransferReq router.DataTransferReq
-	dataTransferReq := a.getTranData(destAppid, destAppType, uint32(bm.Cmd.MainCmdID), uint32(bm.Cmd.SubCmdID))
-	//dataTransferReq.SrcAppid = proto.Uint32(conf.AppID)
-	//dataTransferReq.SrcApptype = proto.Uint32(conf.AppType)
-	//dataTransferReq.DestAppid = proto.Uint32(destAppid)
-	//dataTransferReq.DestApptype = proto.Uint32(destAppType)
-	//dataTransferReq.DataCmdkind = proto.Uint32(uint32(bm.Cmd.MainCmdID))
-	//dataTransferReq.DataCmdsubid = proto.Uint32(uint32(bm.Cmd.SubCmdID))
-	dataTransferReq.DataBuff, _ = proto.Marshal(bm.MyMessage.(proto.Message))
-	dataTransferReq.DataDirection = proto.Uint32(uint32(router.EnuDataDirection_DT_App2App))
+	dataReq := a.getTranData(destAppid, destAppType, uint32(bm.Cmd.MainCmdID), uint32(bm.Cmd.SubCmdID), uint32(router.EnuDataDirection_DT_App2App))
+	dataReq.DataBuff, _ = proto.Marshal(bm.MyMessage.(proto.Message))
 	cmd := n.TCPCommand{MainCmdID: uint16(n.CMDRouter), SubCmdID: uint16(router.CMDID_Router_IDDataMessageReq)}
-	transBM := n.BaseMessage{MyMessage: &dataTransferReq, Cmd: cmd, TraceId: bm.TraceId}
-	a.SendMessage(transBM)
-}
-func (a *agent) SendMessage2Client(bm n.BaseMessage, userID, gateConnID, sessionID uint64) {
-	//var dataTransferReq router.DataTransferReq
-	dataTransferReq := a.getTranData(uint32(gateConnID>>32), n.AppGate, uint32(bm.Cmd.MainCmdID), uint32(bm.Cmd.SubCmdID))
-	//dataTransferReq.SrcAppid = proto.Uint32(conf.AppID)
-	//dataTransferReq.SrcApptype = proto.Uint32(conf.AppType)
-	//dataTransferReq.DestAppid = proto.Uint32(uint32(gateConnID >> 32))
-	//dataTransferReq.DestApptype = proto.Uint32(n.AppGate)
-	//dataTransferReq.DataCmdkind = proto.Uint32(uint32(bm.Cmd.MainCmdID))
-	//dataTransferReq.DataCmdsubid = proto.Uint32(uint32(bm.Cmd.SubCmdID))
-	dataTransferReq.DataBuff, _ = proto.Marshal(bm.MyMessage.(proto.Message))
-	dataTransferReq.DataDirection = proto.Uint32(uint32(router.EnuDataDirection_DT_App2Client))
-	dataTransferReq.AttUserid = proto.Uint64(userID)
-	dataTransferReq.AttGateconnid = proto.Uint64(gateConnID)
-	dataTransferReq.AttSessionid = proto.Uint64(sessionID)
-	cmd := n.TCPCommand{MainCmdID: uint16(n.CMDRouter), SubCmdID: uint16(router.CMDID_Router_IDDataMessageReq)}
-	transBM := n.BaseMessage{MyMessage: &dataTransferReq, Cmd: cmd, TraceId: bm.TraceId}
+	transBM := n.BaseMessage{MyMessage: &dataReq, Cmd: cmd, TraceId: bm.TraceId}
 	a.SendMessage(transBM)
 }
 
-func (a *agent) getTranData(DestAppid, DestApptype, DataCmdkind, DataCmdsubid uint32) router.DataTransferReq {
-	var dataTransferReq router.DataTransferReq
-	dataTransferReq.SrcAppid = proto.Uint32(conf.AppID)
-	dataTransferReq.SrcApptype = proto.Uint32(conf.AppType)
-	dataTransferReq.DestAppid = proto.Uint32(DestAppid)
-	dataTransferReq.DestApptype = proto.Uint32(DestApptype)
-	dataTransferReq.DataCmdkind = proto.Uint32(DataCmdkind)
-	dataTransferReq.DataCmdsubid = proto.Uint32(DataCmdsubid)
-	return dataTransferReq
+func (a *agent) SendMessage2Client(bm n.BaseMessage, userID, gateConnID, sessionID uint64) {
+	dataReq := a.getTranData(uint32(gateConnID>>32), n.AppGate, uint32(bm.Cmd.MainCmdID), uint32(bm.Cmd.SubCmdID), uint32(router.EnuDataDirection_DT_App2Client))
+	dataReq.DataBuff, _ = proto.Marshal(bm.MyMessage.(proto.Message))
+	dataReq.AttUserid = proto.Uint64(userID)
+	dataReq.AttGateconnid = proto.Uint64(gateConnID)
+	dataReq.AttSessionid = proto.Uint64(sessionID)
+	cmd := n.TCPCommand{MainCmdID: uint16(n.CMDRouter), SubCmdID: uint16(router.CMDID_Router_IDDataMessageReq)}
+	transBM := n.BaseMessage{MyMessage: &dataReq, Cmd: cmd, TraceId: bm.TraceId}
+	a.SendMessage(transBM)
+}
+
+func (a *agent) SendData(mainCmdID, subCmdID uint32, m proto.Message) {
+	data, err := proto.Marshal(m)
+	if err != nil {
+		log.Error("agent", "异常,proto.Marshal %v error: %v", reflect.TypeOf(m), err)
+		return
+	}
+	err = a.conn.WriteMsg(uint16(mainCmdID), uint16(subCmdID), data, nil)
+	if err != nil {
+		log.Error("agent", "write message %v error: %v", reflect.TypeOf(m), err)
+	}
+}
+
+func (a *agent) SendData2App(destAppType, destAppid, mainCmdID, subCmdID uint32, m proto.Message) {
+	dataReq := a.getTranData(destAppid, destAppType, mainCmdID, subCmdID, uint32(router.EnuDataDirection_DT_App2App))
+	dataReq.DataBuff, _ = proto.Marshal(m)
+	cmd := n.TCPCommand{MainCmdID: uint16(n.CMDRouter), SubCmdID: uint16(router.CMDID_Router_IDDataMessageReq)}
+	bm := n.BaseMessage{MyMessage: &dataReq, Cmd: cmd}
+	a.SendMessage(bm)
+}
+
+func (a *agent) getTranData(destAppid, destAppType, dataKind, dataSubId, direction uint32) router.DataTransferReq {
+	var dataReq router.DataTransferReq
+	dataReq.SrcAppid = proto.Uint32(conf.AppID)
+	dataReq.SrcApptype = proto.Uint32(conf.AppType)
+	dataReq.DestAppid = proto.Uint32(destAppid)
+	dataReq.DestApptype = proto.Uint32(destAppType)
+	dataReq.DataCmdkind = proto.Uint32(dataKind)
+	dataReq.DataCmdsubid = proto.Uint32(dataSubId)
+	dataReq.DataDirection = proto.Uint32(direction)
+	return dataReq
 }
