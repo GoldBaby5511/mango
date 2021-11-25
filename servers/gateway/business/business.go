@@ -62,6 +62,7 @@ func (m *Gate) OnInit() {
 		Processor:     processor,
 		TCPAddr:       conf.Server.TCPAddr,
 		TCPClientAddr: conf.Server.TCPClientAddr,
+		MaxConnNum:    20000,
 	}
 }
 

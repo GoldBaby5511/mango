@@ -1,1 +1,1 @@
-{"appId":"common-server","cluster":"default","namespaceName":"router","releaseKey":"20211123145232-b9ac8ee6517284db","configurations":{"LogScreenPrint":"1","title":"路由服务","日志服务器地址":"127.0.0.1:20001"}}
+{"appId":"common-server","cluster":"default","namespaceName":"router","releaseKey":"20211125144134-b9ac8ee6517284e1","configurations":{"LogScreenPrint":"1","title":"路由服务","日志服务器地址":"127.0.0.1:20001","服务维护":"{\"AppType\":7,\"AppId\":31,\"OpType\":3}"}}

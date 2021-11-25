@@ -1,12 +1,13 @@
 package business
 
 import (
+	"encoding/json"
 	"fmt"
 	"google.golang.org/protobuf/proto"
 	"math/rand"
 	"reflect"
-	"sync"
 	"time"
+	lconf "xlddz/core/conf"
 	"xlddz/core/conf/apollo"
 	g "xlddz/core/gate"
 	"xlddz/core/log"
@@ -18,26 +19,25 @@ import (
 )
 
 var (
-	skeleton      = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
-	mutexConnData sync.Mutex
-	mutexRegData  sync.Mutex
-	appConnData   map[n.Agent]*connectionData = make(map[n.Agent]*connectionData)
-	appRegData    map[uint64]*connectionData  = make(map[uint64]*connectionData)
-	processor                                 = protobuf.NewProcessor()
+	skeleton                                = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
+	appConnData map[n.Agent]*connectionData = make(map[n.Agent]*connectionData)
+	appRegData  map[uint64]*connectionData  = make(map[uint64]*connectionData)
+	processor                               = protobuf.NewProcessor()
 )
 
 const (
-	connected  int = 1
-	registered int = 2
+	connected        int = 1
+	registered       int = 2
+	underMaintenance int = 3
 )
 
 //连接数据
 type appRegInfo struct {
-	appType  uint32
-	appId    uint32
-	regToken string
-	appName  string
-	curStep  int
+	appType   uint32
+	appId     uint32
+	regToken  string
+	appName   string
+	curStatus int
 }
 
 type connectionData struct {
@@ -65,6 +65,8 @@ func init() {
 	chanRPC.Register(reflect.TypeOf(&router.AppPulseNotify{}), handleAppPulseNotify)
 	chanRPC.Register(reflect.TypeOf(&router.AppOfflineReq{}), handleAppOfflineReq)
 	chanRPC.Register(reflect.TypeOf(&router.AppUpdateReq{}), handleAppUpdateReq)
+
+	apollo.RegPublicCB(configChangeNotify)
 }
 
 type Gate struct {
@@ -92,8 +94,6 @@ func (m *Module) OnInit() {
 func (m *Module) OnDestroy() {}
 
 func connectSuccess(args []interface{}) {
-	mutexConnData.Lock()
-	defer mutexConnData.Unlock()
 	log.Info("连接", "来了老弟,当前连接数=%d", len(appConnData))
 	a := args[g.AgentIndex].(n.Agent)
 	if v, ok := appConnData[a]; ok {
@@ -101,32 +101,51 @@ func connectSuccess(args []interface{}) {
 		a.Close()
 		return
 	}
-	appConnData[a] = &connectionData{a: a, regInfo: appRegInfo{curStep: connected}}
+	appConnData[a] = &connectionData{a: a, regInfo: appRegInfo{curStatus: connected}}
 }
 
 func disconnect(args []interface{}) {
-	mutexConnData.Lock()
-	defer mutexConnData.Unlock()
 	log.Info("连接", "告辞中,当前连接数=%d", len(appConnData))
 	a := args[g.AgentIndex].(n.Agent)
 	if v, ok := appConnData[a]; ok {
 		regKey := makeRegKey(v.regInfo.appType, v.regInfo.appId)
 		log.Info("连接", "再见,appType=%d,appId=%d,regKey=%d", v.regInfo.appType, v.regInfo.appId, regKey)
 		delete(appConnData, a)
-		mutexRegData.Lock()
 		delete(appRegData, regKey)
-		mutexRegData.Unlock()
 	} else {
 		log.Error("连接", "异常,没有注册的连接?")
+	}
+}
+
+func configChangeNotify(k apollo.ConfKey, v apollo.ConfValue) {
+
+	key := apollo.ConfKey{AppType: lconf.AppType, AppId: lconf.AppID, Key: "服务维护"}
+	if k == key {
+		type appInfo struct {
+			AppType uint32
+			AppId   uint32
+			OpType  uint32
+		}
+		var info appInfo
+		err := json.Unmarshal([]byte(v.Value), &info)
+		if err != nil {
+			log.Error("配置", "%v", err)
+			return
+		}
+
+		if _, ok := appRegData[makeRegKey(info.AppType, info.AppId)]; !ok {
+			log.Warning("配置", "要维护的服务不存在啊,info=%v", info)
+			return
+		}
+		appRegData[makeRegKey(info.AppType, info.AppId)].regInfo.curStatus = int(info.OpType)
+
+		log.Debug("配置", "收到服务维护配置,%v", info)
 	}
 }
 
 func handleRegisterAppReq(args []interface{}) {
 	m := args[n.DATA_INDEX].(*router.RegisterAppReq)
 	a := args[n.AGENT_INDEX].(n.Agent)
-
-	mutexConnData.Lock()
-	defer mutexConnData.Unlock()
 
 	//连接存在判断
 	if _, ok := appConnData[a]; !ok {
@@ -136,15 +155,14 @@ func handleRegisterAppReq(args []interface{}) {
 	}
 
 	//是否已注册
-	if appConnData[a].regInfo.curStep == registered {
+	if appConnData[a].regInfo.curStatus == registered {
 		return
 	}
 
 	regKey := makeRegKey(m.GetAppType(), m.GetAppId())
-	mutexRegData.Lock()
 	if v, ok := appRegData[regKey]; ok {
 		if v.regInfo.regToken != m.GetReregToken() {
-			mutexRegData.Unlock()
+
 			resultMsg := fmt.Sprintf("该服务已注册,appType=%v,appId=%v,regKey=%v",
 				m.GetAppType(), m.GetAppId(), regKey)
 			log.Warning("连接", resultMsg)
@@ -167,7 +185,6 @@ func handleRegisterAppReq(args []interface{}) {
 	//信息存储
 	token := fmt.Sprintf("gb%x%x%x", rand.Int(), time.Now().UnixNano(), rand.Int())
 	appRegData[regKey].regInfo = appRegInfo{m.GetAppType(), m.GetAppId(), token, m.GetAppName(), registered}
-	mutexRegData.Unlock()
 
 	log.Debug("注册", "服务注册,appType=%v,appId=%v,regKey=%v",
 		m.GetAppType(), m.GetAppId(), regKey)
@@ -187,9 +204,6 @@ func handleDataTransferReq(args []interface{}) {
 	m := args[n.DATA_INDEX].(*router.DataTransferReq)
 	a := args[n.AGENT_INDEX].(n.Agent)
 
-	mutexConnData.Lock()
-	defer mutexConnData.Unlock()
-
 	//连接存在判断
 	if _, ok := appConnData[a]; !ok {
 		log.Error("连接", "异常,么有连接的注册?")
@@ -197,8 +211,14 @@ func handleDataTransferReq(args []interface{}) {
 		return
 	}
 
-	if appConnData[a].regInfo.curStep != registered {
-		log.Warning("转发", "不要急,还没注册完成")
+	if appConnData[a].regInfo.curStatus != registered {
+		log.Warning("转发", "兄弟,你状态有问题啊,"+
+			"SrcApptype=%v,SrcAppid=%v,"+
+			"DestApptype=%v,DestApptype=%v,"+
+			"Cmdkind=%v,Cmdsubid=%v,regInfo=%v",
+			m.GetSrcApptype(), m.GetSrcAppid(),
+			m.GetDestApptype(), m.GetDestAppid(),
+			m.GetDataCmdkind(), m.GetDataCmdsubid(), appConnData[a].regInfo)
 		return
 	}
 
@@ -216,51 +236,54 @@ func handleDataTransferReq(args []interface{}) {
 		case n.CMDConfig:
 			apollo.ProcessReq(m)
 		default:
-
 		}
 	} else {
-		//转发只目标
+		destTypeAppCount := func() int {
+			destCount := 0
+			for _, v := range appConnData {
+				if v.regInfo.appType == m.GetDestApptype() {
+					destCount++
+				}
+			}
+			return destCount
+		}
 		sendResult := false
-		switch m.GetDestAppid() {
-		case n.Send2All:
-			for k, v := range appConnData {
-				if v.regInfo.appType == m.GetDestApptype() {
-					k.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDDataMessageReq), m)
+		if destTypeAppCount() != 0 {
+			switch m.GetDestAppid() {
+			case n.Send2All:
+				for k, v := range appConnData {
+					if v.regInfo.appType == m.GetDestApptype() && v.regInfo.curStatus != underMaintenance {
+						k.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDDataMessageReq), m)
+					}
 				}
-			}
-			sendResult = true
-		case n.Send2AnyOne:
-			for k, v := range appConnData {
-				if v.regInfo.appType == m.GetDestApptype() {
-					k.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDDataMessageReq), m)
-					sendResult = true
-					break
+				sendResult = true
+			case n.Send2AnyOne:
+				for k, v := range appConnData {
+					if v.regInfo.appType == m.GetDestApptype() && v.regInfo.curStatus != underMaintenance {
+						k.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDDataMessageReq), m)
+						sendResult = true
+						break
+					}
 				}
-			}
-		default:
-			for k, v := range appConnData {
-				if v.regInfo.appType == m.GetDestApptype() && v.regInfo.appId == m.GetDestAppid() {
-					k.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDDataMessageReq), m)
-					sendResult = true
-					break
+			default:
+				for k, v := range appConnData {
+					if v.regInfo.appType == m.GetDestApptype() && v.regInfo.appId == m.GetDestAppid() && v.regInfo.curStatus != underMaintenance {
+						k.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDDataMessageReq), m)
+						sendResult = true
+						break
+					}
 				}
 			}
 		}
 
 		if !sendResult {
-			destAppCount := 0
-			for _, v := range appConnData {
-				if v.regInfo.appType == m.GetDestApptype() {
-					destAppCount++
-				}
-			}
 			log.Error("转发", "异常,消息转发失败,"+
 				"SrcApptype=%v,SrcAppid=%v,"+
 				"DestApptype=%v,DestApptype=%v,"+
 				"Cmdkind=%v,Cmdsubid=%v,目标app数量=%d",
 				m.GetSrcApptype(), m.GetSrcAppid(),
 				m.GetDestApptype(), m.GetDestAppid(),
-				m.GetDataCmdkind(), m.GetDataCmdsubid(), destAppCount)
+				m.GetDataCmdkind(), m.GetDataCmdsubid(), destTypeAppCount())
 		}
 	}
 }
@@ -268,9 +291,6 @@ func handleDataTransferReq(args []interface{}) {
 func handleAppPulseNotify(args []interface{}) {
 	m := args[n.DATA_INDEX].(*router.AppPulseNotify)
 	a := args[n.AGENT_INDEX].(n.Agent)
-
-	mutexConnData.Lock()
-	defer mutexConnData.Unlock()
 
 	//非法判断
 	if _, ok := appConnData[a]; !ok {

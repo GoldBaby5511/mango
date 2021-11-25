@@ -142,7 +142,7 @@ func RegisterConfig(key string, reqAppType, reqAppId uint32, cb PublicCb) {
 		return
 	}
 
-	regSubList[nsKey] = &ConfValue{}
+	regSubList[nsKey] = &ConfValue{Cb: cb}
 	mxRegSub.Unlock()
 	log.Info("Apollo", "注册Apollo订阅，%v", nsKey)
 
@@ -162,12 +162,12 @@ func SendSubscribeReq(k ConfKey, cancel bool) {
 		return
 	}
 
-	var cfgReq config.ApolloCfgReq
-	cfgReq.AppType = proto.Uint32(conf.AppType)
-	cfgReq.AppId = proto.Uint32(conf.AppID)
-	cfgReq.SubAppType = proto.Uint32(k.AppType)
-	cfgReq.SubAppId = proto.Uint32(k.AppId)
-	cfgReq.KeyName = proto.String(k.Key)
+	var req config.ApolloCfgReq
+	req.AppType = proto.Uint32(conf.AppType)
+	req.AppId = proto.Uint32(conf.AppID)
+	req.SubAppType = proto.Uint32(k.AppType)
+	req.SubAppId = proto.Uint32(k.AppId)
+	req.KeyName = proto.String(k.Key)
 	Subscribe := config.ApolloCfgReq_SUBSCRIBE
 	if regSubList[k].RspCount == 0 {
 		Subscribe = Subscribe | config.ApolloCfgReq_NEED_RSP
@@ -175,8 +175,8 @@ func SendSubscribeReq(k ConfKey, cancel bool) {
 	if cancel {
 		Subscribe = config.ApolloCfgReq_UNSUBSCRIBE
 	}
-	cfgReq.Subscribe = proto.Uint32(uint32(Subscribe))
-	routeAgent.SendData2App(network.AppConfig, network.Send2AnyOne, network.CMDConfig, uint32(config.CMDID_Config_IDApolloCfgReq), &cfgReq)
+	req.Subscribe = proto.Uint32(uint32(Subscribe))
+	routeAgent.SendData2App(network.AppConfig, network.Send2AnyOne, network.CMDConfig, uint32(config.CMDID_Config_IDApolloCfgReq), &req)
 }
 
 //注册回调

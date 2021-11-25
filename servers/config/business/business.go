@@ -103,7 +103,7 @@ func loadConfigs() {
 							return true
 						})
 						listenerList = append(listenerList, l)
-						log.Debug("创建", "创建,appType=%v,appId=%v,len=%v",
+						log.Debug("创建", "apollo模式创建,appType=%v,appId=%v,len=%v",
 							l.appType, l.appId, len(listenerList))
 					} else {
 						serverClient.RemoveChangeListener(l)
@@ -131,7 +131,7 @@ func loadConfigs() {
 			l.listenChange()
 			listenerList = append(listenerList, l)
 
-			log.Debug("创建", "创建,appType=%v,appId=%v,len=%v",
+			log.Debug("创建", "文件模式创建,appType=%v,appId=%v,len=%v",
 				l.appType, l.appId, len(listenerList))
 		}
 	}
@@ -184,13 +184,25 @@ func newListener(info *aConfig.AppConfig, apolloConfig conf.ApolloConfig) *confi
 func (c *configChangeListener) OnChange(changeEvent *storage.ChangeEvent) {
 	//write your code here
 	for key, value := range changeEvent.Changes {
-		c.configs[key] = value.NewValue.(string)
+		log.Debug("OnChange", "OnChange,key=%v,v=%v", key, value)
+		switch value.ChangeType {
+		case storage.ADDED, storage.MODIFIED:
+			c.configs[key] = value.NewValue.(string)
+		case storage.DELETED:
+			delete(c.configs, key)
+		default:
+			log.Warning("变化", "出现未知变化类型,k=%v,v=%v", key, value)
+		}
+
 		c.notifySubscriptionList(key)
 	}
 }
 
 func (c *configChangeListener) OnNewestChange(event *storage.FullChangeEvent) {
 	//write your code here
+	//for key, value := range event.Changes {
+	//	log.Debug("OnNewestChange", "OnNewestChange,key=%v,v=%v", key, value)
+	//}
 }
 
 func (c *configChangeListener) listenChange() {
@@ -226,7 +238,7 @@ func (c *configChangeListener) notifySubscriptionList(changeKey string) {
 	}
 
 	for k, v := range c.subscriptionList {
-		if v.Key != changeKey {
+		if v.Key != "" && v.Key != changeKey {
 			continue
 		}
 
