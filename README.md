@@ -65,6 +65,17 @@ go build
 
 ---
 
+## 服务热切换
+
+以login服务为例，服务在router内的注册是以 appType+appId 为唯一标识，所以若要升级login只需要新开一个实例，使用 appType+新appId，然后修改配置文件(common-server-router.json)或 apollo内“服务维护”字段，写入原login的appType+appId，配置中心会实时将配置通知router，之后的登录消息将会被路由到新login。
+
+注意：
+
+* 切换完成后一定要删除“服务维护”内配置，否则配置内的服务重新启动后将无法正常工作
+* 目前该方法较为简单粗糙，适用于一些无状态的服务，若服务内有状态将会带来一定状态损失(待优化)
+
+---
+
 ## 将来
 
 1. 完善剩余服务 list、fund、room、table使之成为一套完整架构
