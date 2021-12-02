@@ -58,7 +58,6 @@ func init() {
 
 	chanRPC.Register(g.ConnectSuccess, connectSuccess)
 	chanRPC.Register(g.Disconnect, disconnect)
-
 	chanRPC.Register(reflect.TypeOf(&router.RegisterAppReq{}), handleRegisterAppReq)
 	chanRPC.Register(reflect.TypeOf(&router.AppStateNotify{}), handleAppStateNotify)
 	chanRPC.Register(reflect.TypeOf(&router.DataTransferReq{}), handleDataTransferReq)

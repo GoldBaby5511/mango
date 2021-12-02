@@ -10,6 +10,24 @@ import (
 	"xlddz/core/util"
 )
 
+type LogInfo struct {
+	File      string
+	Line      int
+	Classname string
+	Level     int
+	LogStr    string
+	TimeMs    uint64
+}
+
+//全局变量
+var (
+	logger            *Logger                                    = nil
+	screenPrint       int                                        = 1
+	GetMinLevelConfig func(key string, defaultValue int64) int64 = nil
+	cb                func(i LogInfo)                            = nil
+	tempLogInfo       []LogInfo
+)
+
 // levels
 const (
 	trace      = 0
@@ -58,11 +76,11 @@ func New(appName string) (*Logger, error) {
 	}
 
 	// new
-	logger := new(Logger)
-	logger.baseFile = file
-	logger.pathname = pathname
+	l := new(Logger)
+	l.baseFile = file
+	l.pathname = pathname
 
-	return logger, nil
+	return l, nil
 }
 
 func createNewLogFile(pathName string) (*os.File, error) {
@@ -82,31 +100,31 @@ func createNewLogFile(pathName string) (*os.File, error) {
 }
 
 // It's dangerous to call the method on logging
-func (logger *Logger) Close() {
-	if logger.baseFile != nil {
-		logger.baseFile.Close()
+func (l *Logger) Close() {
+	if l.baseFile != nil {
+		l.baseFile.Close()
 	}
 
-	logger.baseFile = nil
+	l.baseFile = nil
 }
 
-func (logger *Logger) doPrintf(level int, logInfo string) {
-	if level < logger.level {
+func (l *Logger) doPrintf(level int, logInfo string) {
+	if level < l.level {
 		return
 	}
-	if logger.baseFile == nil {
+	if l.baseFile == nil {
 		panic("logger closed")
 	}
 
-	logger.baseFile.WriteString(logInfo + "\n")
+	l.baseFile.WriteString(logInfo + "\n")
 
 	//60M分割文件 1024*1024*60
-	fi, err := logger.baseFile.Stat()
+	fi, err := l.baseFile.Stat()
 	if err == nil && fi.Size() >= 1024*1024*60 {
-		file, err := createNewLogFile(logger.pathname)
+		file, err := createNewLogFile(l.pathname)
 		if err == nil {
-			logger.baseFile.Close()
-			logger.baseFile = file
+			l.baseFile.Close()
+			l.baseFile = file
 		}
 	}
 
@@ -115,55 +133,32 @@ func (logger *Logger) doPrintf(level int, logInfo string) {
 	}
 }
 
-//临时存储服务器未连接时的信息
-type LogInfo struct {
-	File      string
-	Line      int
-	Classname string
-	Level     int
-	LogStr    string
-	TimeMs    uint64
-}
-
-//全局变量
-var (
-	gLogger                *Logger                                               = nil
-	gChanCall              chan LogInfo                                          = nil
-	gScreenPrint           int                                                   = 1
-	ApolloGetConfigAsInt64 func(nameSpace, key string, defaultValue int64) int64 = nil
-	gtempLogInfo           []LogInfo
-)
-
 // It's dangerous to call the method on logging
-func Export(logger *Logger) {
-	if logger != nil {
-		gLogger = logger
+func Export(l *Logger) {
+	if l != nil {
+		logger = l
 	}
 }
 
-func SetLogCallBack(c chan LogInfo) {
-	//不接受重复赋值
-	if gChanCall != nil && c != nil {
+func SetCallback(c func(i LogInfo)) {
+	if cb != nil && c != nil {
 		return
 	}
-
-	gChanCall = c
-
-	//调用时不为空被视为服务连接成功,优先将缓存日志写入日志服务器，为空视为与日志断开
-	if gChanCall != nil {
-		for _, logInfo := range gtempLogInfo {
-			gChanCall <- logInfo
+	cb = c
+	if cb != nil {
+		for _, logInfo := range tempLogInfo {
+			c(logInfo)
 		}
 
 		//清空缓存
-		gtempLogInfo = append([]LogInfo{})
+		tempLogInfo = append([]LogInfo{})
 	}
 
 }
 
 //显示日志开关
 func SetScreenPrint(print int) {
-	gScreenPrint = print
+	screenPrint = print
 }
 
 func nowTimeString() string {
@@ -174,9 +169,24 @@ func nowTimeString() string {
 }
 
 func printLog(classname, file, format string, line, level int, a ...interface{}) {
+
 	//配置等级判断
-	if ApolloGetConfigAsInt64 != nil && level < int(ApolloGetConfigAsInt64("", "最低日志级别", 0)) {
+	if GetMinLevelConfig != nil && level < int(GetMinLevelConfig("最低日志级别", 0)) {
 		return
+	}
+
+	//组装格式
+	if screenPrint != 0 || level >= errorLevel || cb == nil {
+		//屏幕打印时调用位置不打印了 + fmt.Sprintf(" << %s, line #%d, func: %v ", file, line, runtime.FuncForPC(pc).Name())
+		format = nowTimeString() + GetLogLevelStr(level) + format
+		logStr := fmt.Sprintf(format, a...)
+		fmt.Println(logStr)
+
+		//失去连接时写入文件保存
+		if cb == nil && logger != nil {
+			logStr = logStr + fmt.Sprintf(" << %s, line #%d ", file, line)
+			logger.doPrintf(level, logStr)
+		}
 	}
 
 	//日志变量
@@ -188,27 +198,10 @@ func printLog(classname, file, format string, line, level int, a ...interface{})
 		LogStr:    fmt.Sprintf(format, a...),
 		TimeMs:    uint64(time.Now().UnixNano() / 1000000),
 	}
-	//丢到日志服务器
-	if gChanCall != nil {
-		gChanCall <- logInfo
+	if cb != nil {
+		cb(logInfo)
 	} else {
-		gtempLogInfo = append(gtempLogInfo, logInfo)
-	}
-
-	//组装格式
-	if gScreenPrint != 0 || level >= errorLevel || gChanCall == nil {
-		//屏幕打印时调用位置不打印了 + fmt.Sprintf(" << %s, line #%d, func: %v ", file, line, runtime.FuncForPC(pc).Name())
-		logLevel := GetLogLevelStr(level)
-
-		format = nowTimeString() + logLevel + format
-		logStr := fmt.Sprintf(format, a...)
-		fmt.Println(logStr)
-
-		//失去连接时写入文件保存
-		if gChanCall == nil && gLogger != nil {
-			logStr = logStr + fmt.Sprintf(" << %s, line #%d ", file, line)
-			gLogger.doPrintf(level, logStr)
-		}
+		tempLogInfo = append(tempLogInfo, logInfo)
 	}
 }
 
@@ -255,7 +248,7 @@ func GetLogLevelStr(level int) string {
 }
 
 func Close() {
-	if gLogger != nil {
-		gLogger.Close()
+	if logger != nil {
+		logger.Close()
 	}
 }

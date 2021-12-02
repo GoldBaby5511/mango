@@ -4,7 +4,8 @@ import (
 	"errors"
 	"google.golang.org/protobuf/proto"
 	"reflect"
-	"sync"
+	"time"
+	"xlddz/core/conf/apollo"
 	g "xlddz/core/gate"
 	"xlddz/core/log"
 	"xlddz/core/module"
@@ -17,9 +18,8 @@ import (
 )
 
 var (
-	skeleton             = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
-	routeAgent   n.Agent = nil
-	mutexConnId  sync.Mutex
+	skeleton                                = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
+	routeAgent   n.Agent                    = nil
 	userConnData map[uint64]*connectionData = make(map[uint64]*connectionData)
 	processor                               = protobuf.NewProcessor()
 )
@@ -29,7 +29,8 @@ type connectionData struct {
 	a           n.Agent
 	userId      uint64
 	connId      uint64
-	hasSayhello bool
+	hasHello    bool
+	lastPulseTk int64
 }
 
 func init() {
@@ -39,8 +40,7 @@ func init() {
 	processor.Register(&gcmd.TransferDataReq{}, n.CMDGate, uint16(gcmd.CMDID_Gate_IDTransferDataReq), chanRPC)
 	processor.Register(&gcmd.AuthInfo{}, n.CMDGate, uint16(gcmd.CMDID_Gate_IDAuthInfo), chanRPC)
 	processor.Register(&gcmd.HelloReq{}, n.CMDGate, uint16(gcmd.CMDID_Gate_IDHelloReq), chanRPC)
-
-	processor.RegHandle(&router.DataTransferRsp{}, n.CMDRouter, uint16(router.CMDID_Router_IDDataMessageReq), routerDataMessageReq)
+	processor.Register(&router.DataTransferRsp{}, n.CMDRouter, uint16(router.CMDID_Router_IDDataMessageReq), chanRPC)
 
 	chanRPC.Register(g.ConnectSuccess, connectSuccess)
 	chanRPC.Register(g.Disconnect, disconnect)
@@ -49,7 +49,7 @@ func init() {
 	chanRPC.Register(reflect.TypeOf(&gcmd.TransferDataReq{}), handleTransferDataReq)
 	chanRPC.Register(reflect.TypeOf(&gcmd.AuthInfo{}), handleAuthInfo)
 	chanRPC.Register(reflect.TypeOf(&gcmd.HelloReq{}), handleHelloReq)
-
+	chanRPC.Register(reflect.TypeOf(&router.DataTransferRsp{}), handRouterDataMessageReq)
 }
 
 type Gate struct {
@@ -64,6 +64,8 @@ func (m *Gate) OnInit() {
 		TCPClientAddr: conf.Server.TCPClientAddr,
 		MaxConnNum:    20000,
 	}
+
+	skeleton.AfterFunc(30*time.Second, checkConnectionAlive)
 }
 
 func (m *Gate) OnDestroy() {}
@@ -82,10 +84,13 @@ func connectSuccess(args []interface{}) {
 	if len(args) != 2 {
 		return
 	}
-	mutexConnId.Lock()
-	defer mutexConnId.Unlock()
 	connId := args[g.IdIndex].(uint64)
-	userConnData[connId] = &connectionData{a: args[g.AgentIndex].(n.Agent), connId: connId, hasSayhello: false}
+	userConnData[connId] = &connectionData{
+		a:           args[g.AgentIndex].(n.Agent),
+		connId:      connId,
+		hasHello:    false,
+		lastPulseTk: time.Now().Unix(),
+	}
 
 	log.Debug("module", "来了老弟,connId=%v,当前连接数=%d", connId, len(userConnData))
 }
@@ -94,8 +99,6 @@ func disconnect(args []interface{}) {
 	if len(args) != 2 {
 		return
 	}
-	mutexConnId.Lock()
-	defer mutexConnId.Unlock()
 	connId := args[g.IdIndex].(uint64)
 	if v, ok := userConnData[connId]; ok {
 		//发送退出
@@ -103,10 +106,10 @@ func disconnect(args []interface{}) {
 		logout.UserId = proto.Uint64(v.userId)
 		routeAgent.SendData2App(n.AppLogin, n.Send2AnyOne, n.CMDClient, uint32(client.CMDID_Client_IDLogoutReq), &logout)
 
-		log.Debug("module", "走了老弟,userId=%v,connId=%v,当前连接数=%d", v.userId, v.connId, len(userConnData))
+		log.Debug("agent1", "走了老弟,userId=%v,connId=%v,当前连接数=%d", v.userId, v.connId, len(userConnData))
 		delete(userConnData, connId)
 	} else {
-		log.Warning("module", "一个没有注册过的连接?,当前连接数=%d", len(userConnData))
+		log.Warning("agent1", "一个没有注册过的连接?,当前连接数=%d", len(userConnData))
 	}
 }
 
@@ -115,7 +118,18 @@ func routerConnected(args []interface{}) {
 }
 
 func handlePulseReq(args []interface{}) {
+	//m := args[n.DATA_INDEX].(*gcmd.PulseReq)
+	a := args[n.AGENT_INDEX].(n.Agent)
 
+	connData, err := getUserConnData(a)
+	if err != nil {
+		log.Warning("gate消息", "异常,没有连接的hello消息")
+		return
+	}
+
+	log.Debug("hello", "收到心跳消息,userId=%v,connId=%d", connData.userId, connData.connId)
+
+	connData.lastPulseTk = time.Now().Unix()
 }
 
 func handleTransferDataReq(args []interface{}) {
@@ -124,11 +138,11 @@ func handleTransferDataReq(args []interface{}) {
 
 	connData, err := getUserConnData(a)
 	if err != nil {
-		log.Error("module", "异常,消息转发,木有找到的连接发的消息,len=%v", len(args))
+		log.Warning("module", "异常,消息转发,木有找到的连接发的消息,len=%v", len(args))
 		return
 	}
 
-	log.Debug("agent", "n.CMDGate,消息转发,type=%v,appid=%v,kind=%v,sub=%v,connId=%v",
+	log.Debug("module", "n.CMDGate,消息转发,type=%v,appid=%v,kind=%v,sub=%v,connId=%v",
 		m.GetAttApptype(), m.GetAttAppid(), m.GetDataCmdKind(), m.GetDataCmdSubid(), connData.connId)
 
 	var dataReq router.DataTransferReq
@@ -155,11 +169,11 @@ func handleHelloReq(args []interface{}) {
 
 	connData, err := getUserConnData(a)
 	if err != nil {
-		log.Error("gate消息", "异常,没有连接的hello消息")
+		log.Warning("gate消息", "异常,没有连接的hello消息")
 		return
 	}
 
-	connData.hasSayhello = true
+	connData.hasHello = true
 
 	log.Debug("hello", "收到hello消息,connId=%d", connData.connId)
 
@@ -178,8 +192,6 @@ func makeGateConnID(connId uint64) uint64 {
 }
 
 func getUserConnData(a n.Agent) (*connectionData, error) {
-	mutexConnId.Lock()
-	defer mutexConnId.Unlock()
 	for _, v := range userConnData {
 		if v.a == a {
 			return v, nil
@@ -190,8 +202,6 @@ func getUserConnData(a n.Agent) (*connectionData, error) {
 }
 
 func getUserAgent(gateConnId uint64) (n.Agent, error) {
-	mutexConnId.Lock()
-	defer mutexConnId.Unlock()
 	connData, ok := userConnData[gateConnId&0xFFFFFFFF]
 	if !ok {
 		return nil, errors.New("真没找到啊")
@@ -200,7 +210,7 @@ func getUserAgent(gateConnId uint64) (n.Agent, error) {
 	return connData.a, nil
 }
 
-func routerDataMessageReq(args []interface{}) {
+func handRouterDataMessageReq(args []interface{}) {
 	b := args[n.DATA_INDEX].(n.BaseMessage)
 	m := (b.MyMessage).(*router.DataTransferReq)
 
@@ -227,4 +237,21 @@ func routerDataMessageReq(args []interface{}) {
 	req.Data = m.GetDataBuff()
 	req.AttSessionid = proto.Uint64(m.GetAttSessionid())
 	a.SendData(n.CMDGate, uint32(gcmd.CMDID_Gate_IDTransferDataReq), &req)
+}
+
+func checkConnectionAlive() {
+
+	var da []connectionData
+	for _, v := range userConnData {
+		if time.Now().Unix()-v.lastPulseTk > apollo.GetConfigAsInt64("心跳间隔", 180) {
+			da = append(da, *v)
+		}
+	}
+
+	for _, c := range da {
+		log.Debug("心跳", "心跳超时断开,userId=%v,connId=%v", c.userId, c.connId)
+		c.a.Close()
+	}
+
+	skeleton.AfterFunc(30*time.Second, checkConnectionAlive)
 }

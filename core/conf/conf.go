@@ -8,8 +8,6 @@ var (
 	ConsolePrompt string = "Leaf$:"
 	ProfilePath   string
 
-	RouterGoroutineNum int = 1000 //普通服务协程默认数量
-
 	//服务基础属性
 	AppName string
 	AppID   uint32

@@ -37,6 +37,10 @@ type ConfValue struct {
 	Cb       PublicCb
 }
 
+func init() {
+	log.GetMinLevelConfig = GetConfigAsInt64
+}
+
 //设置代理
 func SetRouterAgent(a network.Agent) {
 	routeAgent = a

@@ -3,7 +3,6 @@ package network
 import (
 	"net"
 	"sync"
-	"xlddz/core/log"
 )
 
 type ConnSet map[net.Conn]struct{}
@@ -72,10 +71,6 @@ func (tcpConn *TCPConn) Close() {
 }
 
 func (tcpConn *TCPConn) doWrite(b []byte) {
-	if len(tcpConn.writeChan) >= cap(tcpConn.writeChan) {
-		log.Warning("conn", "警告,chan 满了写入将会有短暂延迟,len=%v,delayMsgCount=%d", len(tcpConn.writeChan))
-	}
-
 	tcpConn.writeChan <- b
 }
 

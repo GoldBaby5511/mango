@@ -44,6 +44,5 @@ func init() {
 	lconf.AppName = Server.AppName
 	lconf.AppID = Server.AppID
 	lconf.AppType = Server.AppType
-	lconf.RouterGoroutineNum = 1
 	log.Info("jsonconf", "配置文件载入成功%v", Server)
 }

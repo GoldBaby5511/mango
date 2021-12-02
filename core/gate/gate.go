@@ -4,7 +4,6 @@ import (
 	"google.golang.org/protobuf/proto"
 	"net"
 	"reflect"
-	"sync"
 	"time"
 	"xlddz/core/chanrpc"
 	"xlddz/core/conf"
@@ -29,8 +28,7 @@ const (
 )
 
 var (
-	routerMsgChan      []chan []interface{} //router消息并发通道
-	cbRouterDisconnect []func()             //router断开回调
+	cbRouterDisconnect []func() //router断开回调
 	tcpLog             *n.TCPClient
 )
 
@@ -54,27 +52,20 @@ func ApolloNotify(k apollo.ConfKey, v apollo.ConfValue) {
 			log.Info("gate", "日志服务器连接成功,Addr=%v", LogAddr)
 			log.Info("gate", "服务启动完成,阔以开始了... ...")
 
-			callChan := make(chan log.LogInfo)
-			//这里边不能再有log调用否则就是死循环
-			go func() {
-				for {
-					logInfo := <-callChan
+			log.SetCallback(func(i log.LogInfo) {
+				var logReq logger.LogReq
+				logReq.FileName = proto.String(i.File)
+				logReq.LineNo = proto.Uint32(uint32(i.Line))
+				logReq.SrcApptype = proto.Uint32(conf.AppType)
+				logReq.SrcAppid = proto.Uint32(conf.AppID)
+				logReq.Content = []byte(i.LogStr)
+				logReq.ClassName = []byte(i.Classname)
+				logReq.LogLevel = proto.Uint32(uint32(i.Level))
+				logReq.TimeMs = proto.Uint64(i.TimeMs)
+				logReq.SrcAppname = proto.String(conf.AppName)
+				a.SendData(n.CMDLogger, uint32(logger.CMDID_Logger_IDLogReq), &logReq)
+			})
 
-					var logReq logger.LogReq
-					logReq.FileName = proto.String(logInfo.File)
-					logReq.LineNo = proto.Uint32(uint32(logInfo.Line))
-					logReq.SrcApptype = proto.Uint32(conf.AppType)
-					logReq.SrcAppid = proto.Uint32(conf.AppID)
-					logReq.Content = []byte(logInfo.LogStr)
-					logReq.ClassName = []byte(logInfo.Classname)
-					logReq.LogLevel = proto.Uint32(uint32(logInfo.Level))
-					logReq.TimeMs = proto.Uint64(logInfo.TimeMs)
-					logReq.SrcAppname = proto.String(conf.AppName)
-					a.SendData(n.CMDLogger, uint32(logger.CMDID_Logger_IDLogReq), &logReq)
-				}
-			}()
-
-			log.SetLogCallBack(callChan)
 			return a
 		}
 
@@ -139,6 +130,7 @@ func (gate *Gate) Run(closeSig chan bool) {
 		tcpServer.LenMsgLen = gate.LenMsgLen
 		tcpServer.MaxMsgLen = gate.MaxMsgLen
 		tcpServer.LittleEndian = gate.LittleEndian
+		tcpServer.GetConfig = apollo.GetConfigAsInt64
 		tcpServer.NewAgent = func(conn *n.TCPConn, agentId uint64) n.Agent {
 			a := &agent{id: agentId, conn: conn, gate: gate, agentType: AGENT_TYPE_SERVER}
 			if gate.AgentChanRPC != nil {
@@ -149,8 +141,6 @@ func (gate *Gate) Run(closeSig chan bool) {
 	}
 
 	//router连接
-	var wg sync.WaitGroup
-	closeMsg := make(chan bool)
 	var tcpRouterClient *n.TCPClient
 	if gate.TCPClientAddr != "" {
 		tcpRouterClient = new(n.TCPClient)
@@ -167,7 +157,7 @@ func (gate *Gate) Run(closeSig chan bool) {
 
 			//连接成功发送注册命令
 			var registerReq router.RegisterAppReq
-			registerReq.AuthKey = proto.String("2")
+			registerReq.AuthKey = proto.String("GoldBaby")
 			registerReq.AppType = proto.Uint32(conf.AppType)
 			registerReq.AppId = proto.Uint32(conf.AppID)
 			a.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDAppRegReq), &registerReq)
@@ -188,34 +178,6 @@ func (gate *Gate) Run(closeSig chan bool) {
 			}(timerHeartbeat)
 			return a
 		}
-
-		//创建异步处理协程 默认创建1000个
-		if conf.RouterGoroutineNum < 0 || conf.RouterGoroutineNum > 1000 {
-			conf.RouterGoroutineNum = 1000
-		}
-		//重连情况下不需要重建,运行时改变 conf.RouterGoroutineNum可能发生泄漏
-		if len(routerMsgChan) != conf.RouterGoroutineNum {
-			for i := 0; i < conf.RouterGoroutineNum; i++ {
-				wg.Add(1)
-				mc := make(chan []interface{})
-				go func(mc chan []interface{}) {
-					defer wg.Done()
-					for {
-						select {
-						case args := <-mc:
-							err := gate.Processor.Route(args...)
-							if err != nil {
-								log.Error("agent", "client agent route message error: %v", err)
-								continue
-							}
-						case <-closeMsg:
-							return
-						}
-					}
-				}(mc)
-				routerMsgChan = append(routerMsgChan, mc)
-			}
-		}
 	}
 
 	if wsServer != nil {
@@ -229,10 +191,6 @@ func (gate *Gate) Run(closeSig chan bool) {
 		tcpRouterClient.Start()
 	}
 	<-closeSig
-	for i := 0; i < len(routerMsgChan); i++ {
-		closeMsg <- true
-	}
-	wg.Wait()
 
 	if wsServer != nil {
 		wsServer.Close()
@@ -267,10 +225,11 @@ type agent struct {
 }
 
 func (a *agent) Run() {
+
 	for {
 		bm, msgData, err := a.conn.ReadMsg()
 		if err != nil {
-			log.Warning("gate", "异常,网关读取消息失败,err=%v", err)
+			log.Warning("agent", "异常,网关读取消息失败,id=%v,agentType=%v,err=%v", a.id, a.agentType, err)
 			break
 		}
 
@@ -316,21 +275,10 @@ func (a *agent) Run() {
 						continue
 					}
 				}
-
-				//异步到协程内处理，优先用户的connid，默认第一个了
-				indexChan := 0
-				if m.GetAttGateconnid() != 0 {
-					indexChan = int(m.GetAttGateconnid()) % len(routerMsgChan)
-				} else if m.GetSrcAppid() != 0 {
-					indexChan = int(m.GetSrcAppid()) % len(routerMsgChan)
-				}
-
-				//投递消息
-				if indexChan >= 0 && indexChan < len(routerMsgChan) {
-					baseMsg := n.BaseMessage{MyMessage: msg, TraceId: bm.TraceId}
-					routerMsgChan[indexChan] <- []interface{}{baseMsg, a, cmd, &m}
-				} else {
-					log.Error("agent", "agent异步消息时出错,cmd=%v,indexChan=%v,len(routerMsgChan)=%v", cmd, indexChan, len(routerMsgChan))
+				baseMsg := n.BaseMessage{MyMessage: msg, TraceId: bm.TraceId}
+				err = a.gate.Processor.Route(baseMsg, a, cmd, &m)
+				if err != nil {
+					log.Error("agent", "路由失败, err=%v,cmd=%v", err, cmd)
 					continue
 				}
 
@@ -344,7 +292,7 @@ func (a *agent) Run() {
 
 func (a *agent) OnClose() {
 	if a.agentType == AGENT_TYPE_LOGGER {
-		log.SetLogCallBack(nil)
+		log.SetCallback(nil)
 		log.Info("agent", "日志服务器断开")
 	} else {
 		if a.gate.AgentChanRPC != nil {
@@ -356,8 +304,7 @@ func (a *agent) OnClose() {
 
 		//连接关闭了
 		if a.agentType == AGENT_TYPE_ROUTER {
-			//router断了世界应该被重启一次
-			log.Error("agent", "异常,与router连接断开,世界需要重启... ...")
+			log.Warning("agent", "异常,与router连接断开,世界需要重启... ...")
 			for _, cb := range cbRouterDisconnect {
 				cb()
 			}

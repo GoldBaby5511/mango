@@ -6,7 +6,6 @@ import (
 	"os"
 	"path"
 	"reflect"
-	"sync"
 	"time"
 	g "xlddz/core/gate"
 	"xlddz/core/log"
@@ -19,10 +18,9 @@ import (
 )
 
 var (
-	skeleton      = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
-	mutexConnData sync.Mutex
-	appConnData   map[n.Agent]*connectionData = make(map[n.Agent]*connectionData)
-	processor                                 = protobuf.NewProcessor()
+	skeleton                                = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
+	appConnData map[n.Agent]*connectionData = make(map[n.Agent]*connectionData)
+	processor                               = protobuf.NewProcessor()
 )
 
 const (
@@ -55,7 +53,6 @@ func init() {
 
 	chanRPC.Register(g.ConnectSuccess, connectSuccess)
 	chanRPC.Register(g.Disconnect, disconnect)
-
 	chanRPC.Register(reflect.TypeOf(&logger.LogReq{}), handleLogReq)
 	chanRPC.Register(reflect.TypeOf(&logger.LogFlush{}), handleLogFlush)
 }
@@ -85,8 +82,6 @@ func (m *Module) OnInit() {
 func (m *Module) OnDestroy() {}
 
 func connectSuccess(args []interface{}) {
-	mutexConnData.Lock()
-	defer mutexConnData.Unlock()
 	log.Info("连接", "来了老弟,当前连接数=%d", len(appConnData))
 	a := args[g.AgentIndex].(n.Agent)
 	if v, ok := appConnData[a]; ok {
@@ -98,8 +93,6 @@ func connectSuccess(args []interface{}) {
 }
 
 func disconnect(args []interface{}) {
-	mutexConnData.Lock()
-	defer mutexConnData.Unlock()
 	log.Info("连接", "告辞中,当前连接数=%d", len(appConnData))
 	a := args[g.AgentIndex].(n.Agent)
 	if v, ok := appConnData[a]; ok {
@@ -120,9 +113,6 @@ func disconnect(args []interface{}) {
 func handleLogReq(args []interface{}) {
 	m := args[n.DATA_INDEX].(*logger.LogReq)
 	a := args[n.AGENT_INDEX].(n.Agent)
-
-	mutexConnData.Lock()
-	defer mutexConnData.Unlock()
 
 	//连接存在判断
 	if _, ok := appConnData[a]; !ok {
