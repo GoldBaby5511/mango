@@ -10,8 +10,10 @@ import (
 	"xlddz/core/conf/apollo"
 	"xlddz/core/log"
 	n "xlddz/core/network"
+	"xlddz/protocol/center"
+	"xlddz/protocol/config"
+	"xlddz/protocol/gate"
 	"xlddz/protocol/logger"
-	"xlddz/protocol/router"
 )
 
 //网络事件
@@ -30,6 +32,9 @@ const (
 var (
 	cbRouterDisconnect []func() //router断开回调
 	tcpLog             *n.TCPClient
+	servers            map[uint64]*ServerItem = make(map[uint64]*ServerItem)
+	AgentChanRPC       *chanrpc.Server
+	Processor          n.Processor
 )
 
 func init() {
@@ -40,15 +45,16 @@ func init() {
 	apollo.RegPublicCB(ApolloNotify)
 }
 
-//apollo配置第一次获取成功回调
 func ApolloNotify(k apollo.ConfKey, v apollo.ConfValue) {
 	//得到日志服务
 	if conf.AppType != n.AppLogger && k.Key == "日志服务器地址" && v.Value != "" &&
 		v.RspCount == 1 && tcpLog != nil && !tcpLog.IsRunning() {
 		LogAddr := v.Value
 		tcpLog.Addr = LogAddr
-		tcpLog.NewAgent = func(conn *n.TCPConn) n.Agent {
-			a := &agent{conn: conn, agentType: AGENT_TYPE_LOGGER}
+		tcpLog.AutoReconnect = true
+		tcpLog.NewAgent = func(conn *n.TCPConn) n.AgentServer {
+			a := &agentServer{conn: conn}
+			a.s = &ServerItem{tcpClient: tcpLog, a: a, AppName: "logger", AppType: n.AppLogger, AppID: 0, Address: LogAddr}
 			log.Info("gate", "日志服务器连接成功,Addr=%v", LogAddr)
 			log.Info("gate", "服务启动完成,阔以开始了... ...")
 
@@ -63,7 +69,9 @@ func ApolloNotify(k apollo.ConfKey, v apollo.ConfValue) {
 				logReq.LogLevel = proto.Uint32(uint32(i.Level))
 				logReq.TimeMs = proto.Uint64(i.TimeMs)
 				logReq.SrcAppname = proto.String(conf.AppName)
-				a.SendData(n.CMDLogger, uint32(logger.CMDID_Logger_IDLogReq), &logReq)
+				cmd := n.TCPCommand{MainCmdID: uint16(n.CMDLogger), SubCmdID: uint16(logger.CMDID_Logger_IDLogReq)}
+				bm := n.BaseMessage{MyMessage: &logReq, Cmd: cmd}
+				a.SendMessage(bm)
 			})
 
 			return a
@@ -78,8 +86,6 @@ type Gate struct {
 	MaxConnNum      int
 	PendingWriteNum int
 	MaxMsgLen       uint32
-	Processor       n.Processor
-	AgentChanRPC    *chanrpc.Server
 
 	// websocket
 	WSAddr      string
@@ -112,10 +118,10 @@ func (gate *Gate) Run(closeSig chan bool) {
 		wsServer.HTTPTimeout = gate.HTTPTimeout
 		wsServer.CertFile = gate.CertFile
 		wsServer.KeyFile = gate.KeyFile
-		wsServer.NewAgent = func(conn *n.WSConn) n.Agent {
-			a := &agent{conn: conn, gate: gate, agentType: AGENT_TYPE_SERVER}
-			if gate.AgentChanRPC != nil {
-				gate.AgentChanRPC.Go(ConnectSuccess, a)
+		wsServer.NewAgent = func(conn *n.WSConn) n.AgentClient {
+			a := &agent{conn: conn, gate: gate}
+			if AgentChanRPC != nil {
+				AgentChanRPC.Go(ConnectSuccess, a)
 			}
 			return a
 		}
@@ -131,10 +137,10 @@ func (gate *Gate) Run(closeSig chan bool) {
 		tcpServer.MaxMsgLen = gate.MaxMsgLen
 		tcpServer.LittleEndian = gate.LittleEndian
 		tcpServer.GetConfig = apollo.GetConfigAsInt64
-		tcpServer.NewAgent = func(conn *n.TCPConn, agentId uint64) n.Agent {
-			a := &agent{id: agentId, conn: conn, gate: gate, agentType: AGENT_TYPE_SERVER}
-			if gate.AgentChanRPC != nil {
-				gate.AgentChanRPC.Go(ConnectSuccess, a, agentId)
+		tcpServer.NewAgent = func(conn *n.TCPConn, agentId uint64) n.AgentClient {
+			a := &agent{id: agentId, conn: conn, gate: gate, info: n.BaseAgentInfo{AgentType: n.NormalUser}}
+			if AgentChanRPC != nil {
+				AgentChanRPC.Go(ConnectSuccess, a, agentId)
 			}
 			return a
 		}
@@ -146,21 +152,19 @@ func (gate *Gate) Run(closeSig chan bool) {
 		tcpRouterClient = new(n.TCPClient)
 		tcpRouterClient.Addr = gate.TCPClientAddr
 		tcpRouterClient.PendingWriteNum = gate.PendingWriteNum
-		tcpRouterClient.NewAgent = func(conn *n.TCPConn) n.Agent {
-			a := &agent{conn: conn, gate: gate, agentType: AGENT_TYPE_ROUTER}
-			if gate.AgentChanRPC != nil {
-				gate.AgentChanRPC.Go(RouterConnected, a)
+		tcpRouterClient.AutoReconnect = true
+		tcpRouterClient.NewAgent = func(conn *n.TCPConn) n.AgentServer {
+			a := &agentServer{conn: conn}
+			a.s = &ServerItem{tcpClient: tcpLog, a: a, AppName: "router", AppType: n.AppCenter, AppID: 0, Address: gate.TCPClientAddr}
+			servers[(uint64(n.AppCenter)<<32 | uint64(0))] = a.s
+			if AgentChanRPC != nil {
+				AgentChanRPC.Go(RouterConnected, a)
 			}
 
-			apollo.SetRouterAgent(a)
-			log.Info("agent", "Router连接成功,Addr=%v", a.gate.TCPClientAddr)
+			log.Info("agent", "Router连接成功,Addr=%v", gate.TCPClientAddr)
 
 			//连接成功发送注册命令
-			var registerReq router.RegisterAppReq
-			registerReq.AuthKey = proto.String("GoldBaby")
-			registerReq.AppType = proto.Uint32(conf.AppType)
-			registerReq.AppId = proto.Uint32(conf.AppID)
-			a.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDAppRegReq), &registerReq)
+			sendRegAppReq(a)
 
 			//启动心跳
 			timeInterval := 30 * time.Second
@@ -168,10 +172,10 @@ func (gate *Gate) Run(closeSig chan bool) {
 			go func(t *time.Timer) {
 				for {
 					<-t.C
-					var appPulseNotify router.AppPulseNotify
-					appPulseNotify.Action = (*router.AppPulseNotify_PulseAction)(proto.Int32(int32(router.AppPulseNotify_HeartBeatReq)))
+					var appPulseNotify center.AppPulseNotify
+					appPulseNotify.Action = (*center.AppPulseNotify_PulseAction)(proto.Int32(int32(center.AppPulseNotify_HeartBeatReq)))
 					appPulseNotify.PulseData = proto.Uint64(uint64(time.Now().Unix()))
-					a.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDPulseNotify), &appPulseNotify)
+					a.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDPulseNotify), &appPulseNotify)
 
 					t.Reset(timeInterval)
 				}
@@ -209,19 +213,12 @@ func (gate *Gate) Run(closeSig chan bool) {
 //OnDestroy module实现
 func (gate *Gate) OnDestroy() {}
 
-//代理类型
-const (
-	AGENT_TYPE_SERVER int = 0 //服务
-	AGENT_TYPE_ROUTER int = 1 //router
-	AGENT_TYPE_LOGGER int = 2 //log
-)
-
 //代理
 type agent struct {
-	id        uint64
-	conn      n.Conn
-	gate      *Gate
-	agentType int //代理类型
+	id   uint64
+	conn n.Conn
+	gate *Gate
+	info n.BaseAgentInfo
 }
 
 func (a *agent) Run() {
@@ -229,85 +226,121 @@ func (a *agent) Run() {
 	for {
 		bm, msgData, err := a.conn.ReadMsg()
 		if err != nil {
-			log.Warning("agent", "异常,网关读取消息失败,id=%v,agentType=%v,err=%v", a.id, a.agentType, err)
+			log.Warning("agent", "异常,网关读取消息失败,id=%v,err=%v", a.id, err)
+			break
+		}
+		if Processor == nil {
+			log.Error("agent", "异常,解析器为nil断开连接,cmd=%v", &bm.Cmd)
 			break
 		}
 
 		//构造参数，全新改造中，暂时这么用着
-		headCmd := &bm.Cmd
-		if !a.preDealFrameMsg(headCmd, msgData) {
-			if a.gate.Processor == nil {
-				log.Error("agent", "异常,解析器为nil断开连接,cmd=%v", headCmd)
-				break
-			}
+		if bm.Cmd.MainCmdID == uint16(n.CMDConfig) && bm.Cmd.SubCmdID == uint16(config.CMDID_Config_IDApolloCfgRsp) {
+			log.Debug("", "收到配置中心消息2")
+			apollo.ProcessReq(&bm.Cmd, msgData)
+			continue
+		}
 
-			//类型判断
-			if a.agentType == AGENT_TYPE_SERVER {
-				cmd, msg, err := a.gate.Processor.Unmarshal(headCmd.MainCmdID, headCmd.SubCmdID, msgData)
+		if conf.AppType != n.AppCenter && bm.Cmd.MainCmdID == uint16(n.CMDCenter) && bm.Cmd.SubCmdID == uint16(center.CMDID_Center_IDAppRegReq) {
+			var m center.RegisterAppReq
+			_ = proto.Unmarshal(msgData, &m)
+			a.info = n.BaseAgentInfo{AgentType: n.CommonServer, AppName: m.GetAppName(), AppType: m.GetAppType(), AppID: m.GetAppId()}
+			log.Debug("", "相互注册,%v", a.info)
+			continue
+		}
+
+		if bm.Cmd.MainCmdID == uint16(n.CMDGate) && bm.Cmd.SubCmdID == uint16(gate.CMDID_Gate_IDTransferDataReq) {
+			if conf.AppType == n.AppGate {
+				cmd, msg, err := Processor.Unmarshal(bm.Cmd.MainCmdID, bm.Cmd.SubCmdID, msgData)
 				if err != nil {
-					log.Error("agent", "unmarshal message,agentType=%v,headCmd=%v,error: %v", a.agentType, headCmd, err)
+					log.Error("agent", "unmarshal message,headCmd=%v,error: %v", bm.Cmd, err)
 					continue
 				}
 
-				err = a.gate.Processor.Route(msg, a, cmd, msgData)
+				baseMsg := n.BaseMessage{MyMessage: msg, TraceId: bm.TraceId}
+				err = Processor.Route(baseMsg, a, cmd, msgData)
 				if err != nil {
 					log.Error("agent", "client agent route message error: %v,cmd=%v", err, cmd)
 					continue
 				}
-			} else if a.agentType == AGENT_TYPE_ROUTER {
-				//理论上只有这个消息
-				if headCmd.SubCmdID != uint16(router.CMDID_Router_IDDataMessageReq) {
-					log.Error("agent", "这里理论上是不可能出现的!!!,出现未知消息,cmd=%v", headCmd)
+			} else {
+				log.Debug("", "gate二次解密,%v,%v", bm.Cmd, a.info.AgentType)
+				var m gate.TransferDataReq
+				_ = proto.Unmarshal(msgData, &m)
+
+				cmd, msg, err := Processor.Unmarshal(uint16(m.GetDataCmdKind()), uint16(m.GetDataCmdSubid()), m.GetData())
+				if err != nil {
+					log.Error("agent", "unmarshal message,headCmd=%v,error: %v", bm.Cmd, err)
 					continue
 				}
 
-				var m router.DataTransferReq
-				_ = proto.Unmarshal(msgData, &m)
-				var cmd, msg, err interface{} = nil, nil, nil
-				//Gateway服务是一个特例，发往客户端的消息需要外层逻辑处理，暂时以对外监听地址做区别，以当前服务拓扑结构连router且对外的只有网关
-				if m.GetDataDirection() == uint32(router.EnuDataDirection_DT_App2Client) && a.gate.TCPAddr != "" {
-					msg = &m
-					cmd = &n.TCPCommand{MainCmdID: uint16(n.CMDRouter), SubCmdID: uint16(router.CMDID_Router_IDDataMessageReq)}
-				} else {
-					cmd, msg, err = a.gate.Processor.Unmarshal(uint16(m.GetDataCmdkind()), uint16(m.GetDataCmdsubid()), m.GetDataBuff())
-					if err != nil {
-						log.Error("agent", "unmarshal message,agentType=%v,headCmd=%v,error: %v", a.agentType, headCmd, err)
-						continue
-					}
-				}
 				baseMsg := n.BaseMessage{MyMessage: msg, TraceId: bm.TraceId}
-				err = a.gate.Processor.Route(baseMsg, a, cmd, &m)
+				err = Processor.Route(baseMsg, a, cmd, &m)
 				if err != nil {
 					log.Error("agent", "路由失败, err=%v,cmd=%v", err, cmd)
 					continue
 				}
-
-			} else {
-				log.Error("agent", "快跑吧！这是日志服务器都给你消息了吗？,agentType=%v,headCmd=%v", a.agentType, headCmd)
-				break
 			}
+			continue
 		}
+
+		cmd, msg, err := Processor.Unmarshal(bm.Cmd.MainCmdID, bm.Cmd.SubCmdID, msgData)
+		if err != nil {
+			log.Error("agent", "unmarshal message,headCmd=%v,error: %v", bm.Cmd, err)
+			continue
+		}
+
+		baseMsg := n.BaseMessage{MyMessage: msg, TraceId: bm.TraceId}
+		err = Processor.Route(baseMsg, a, cmd, msgData)
+		if err != nil {
+			log.Error("agent", "client agent route message error: %v,cmd=%v", err, cmd)
+			continue
+		}
+
+		//if bm.Cmd.SubCmdID != uint16(gate.CMDID_Gate_IDTransferDataReq) {
+		//	cmd, msg, err := Processor.Unmarshal(bm.Cmd.MainCmdID, bm.Cmd.SubCmdID, msgData)
+		//	if err != nil {
+		//		log.Error("agent", "unmarshal message,headCmd=%v,error: %v", bm.Cmd, err)
+		//		continue
+		//	}
+		//
+		//	baseMsg := n.BaseMessage{MyMessage: msg, TraceId: bm.TraceId}
+		//	err = Processor.Route(baseMsg, a, cmd, msgData)
+		//	if err != nil {
+		//		log.Error("agent", "client agent route message error: %v,cmd=%v", err, cmd)
+		//		continue
+		//	}
+		//} else {
+		//	log.Debug("", "gate二次解密,%v,%v", bm.Cmd, a.info.AgentType)
+		//	var m gate.TransferDataReq
+		//	_ = proto.Unmarshal(msgData, &m)
+		//	var cmd, msg, err interface{} = nil, nil, nil
+		//	//Gateway服务是一个特例，发往客户端的消息需要外层逻辑处理，暂时以对外监听地址做区别，以当前服务拓扑结构连router且对外的只有网关
+		//	if m.GetDataDirection() == uint32(center.EnuDataDirection_DT_App2Client) && conf.AppType == n.AppGate {
+		//		msg = &m
+		//		cmd = &n.TCPCommand{MainCmdID: uint16(n.CMDCenter), SubCmdID: uint16(center.CMDID_Center_IDDataMessageReq)}
+		//	} else {
+		//		cmd, msg, err = Processor.Unmarshal(uint16(bm.Cmd.MainCmdID), uint16(bm.Cmd.SubCmdID), msgData)
+		//		if err != nil {
+		//			log.Error("agent", "unmarshal message,headCmd=%v,error: %v", bm.Cmd, err)
+		//			continue
+		//		}
+		//	}
+		//	baseMsg := n.BaseMessage{MyMessage: msg, TraceId: bm.TraceId}
+		//	err = Processor.Route(baseMsg, a, cmd, &m)
+		//	if err != nil {
+		//		log.Error("agent", "路由失败, err=%v,cmd=%v", err, cmd)
+		//		continue
+		//	}
+		//}
 	}
 }
 
 func (a *agent) OnClose() {
-	if a.agentType == AGENT_TYPE_LOGGER {
-		log.SetCallback(nil)
-		log.Info("agent", "日志服务器断开")
-	} else {
-		if a.gate.AgentChanRPC != nil {
-			err := a.gate.AgentChanRPC.Call0(Disconnect, a, a.id)
-			if err != nil {
-				log.Error("agent", "chanrpc error: %v", err)
-			}
-		}
-
-		//连接关闭了
-		if a.agentType == AGENT_TYPE_ROUTER {
-			log.Warning("agent", "异常,与router连接断开,世界需要重启... ...")
-			for _, cb := range cbRouterDisconnect {
-				cb()
-			}
+	if AgentChanRPC != nil {
+		err := AgentChanRPC.Call0(Disconnect, a, a.id)
+		if err != nil {
+			log.Error("agent", "chanrpc error: %v", err)
 		}
 	}
 }
@@ -328,97 +361,6 @@ func (a *agent) Destroy() {
 	a.conn.Destroy()
 }
 
-//框架消息处理,返回true则不在丢到业务层处理
-func (a *agent) preDealFrameMsg(cmd *n.TCPCommand, data []byte) bool {
-
-	//对外监听但又不连接router的那肯定就是router服务本身了
-	if a.agentType == AGENT_TYPE_SERVER && a.gate.TCPClientAddr == "" {
-		return false
-	}
-
-	//消息处理
-	if cmd.MainCmdID == uint16(n.CMDRouter) {
-		switch cmd.SubCmdID {
-		case uint16(router.CMDID_Router_IDAppRegRsp): //router注册消息
-			var m router.RegisterAppRsp
-			_ = proto.Unmarshal(data, &m)
-
-			if m.GetRegResult() == 0 {
-				log.Info("agent", "注册成功,regToken=%v,RouterId=%v",
-					m.GetReregToken(), m.GetRouterId())
-
-				//获取配置
-				if n.AppConfig != conf.AppType {
-					apollo.RegisterConfig("", conf.AppType, conf.AppID, nil)
-				}
-			} else {
-				log.Warning("agent", "注册失败,RouterId=%v,原因=%v", m.GetRouterId(), m.GetReregToken())
-			}
-			if a.gate.AgentChanRPC != nil {
-				a.gate.AgentChanRPC.Call0(RouterRegResult, m.GetRegResult(), m.GetRouterId())
-			}
-		case uint16(router.CMDID_Router_IDAppState): //app状态改变
-			var m router.AppStateNotify
-			_ = proto.Unmarshal(data, &m)
-			log.Debug("agent", "app状态改变 AppState=%v,RouterId=%v,AppType=%v,AppId=%v",
-				m.GetAppState(), m.GetRouterId(), m.GetAppType(), m.GetAppId())
-		case uint16(router.CMDID_Router_IDDataMessageReq): //普通消息
-			var m router.DataTransferReq
-			_ = proto.Unmarshal(data, &m)
-			//配置中心消息
-			if m.GetDataCmdkind() == n.CMDConfig && n.AppConfig != conf.AppType {
-				apollo.ProcessReq(&m)
-				return true
-			}
-			return false
-		case uint16(router.CMDID_Router_IDPulseNotify): //心跳
-		default:
-			log.Error("agent", "n.CMDRouter,异常,还未处理消息,%v", cmd)
-		}
-		return true
-	}
-
-	return false
-}
-
-func (a *agent) SendMessage(bm n.BaseMessage) {
-	m := bm.MyMessage.(proto.Message)
-	data, err := proto.Marshal(m)
-	if err != nil {
-		log.Error("agent", "异常,proto.Marshal %v error: %v", reflect.TypeOf(m), err)
-		return
-	}
-	//追加TraceId
-	otherData := make([]byte, 0, n.TraceIdLen+1)
-	if bm.TraceId != "" {
-		otherData = append(otherData, n.FlagOtherTraceId)
-		otherData = append(otherData, []byte(bm.TraceId)...)
-	}
-	err = a.conn.WriteMsg(bm.Cmd.MainCmdID, bm.Cmd.SubCmdID, data, otherData)
-	if err != nil {
-		log.Error("agent", "写信息失败 %v error: %v", reflect.TypeOf(m), err)
-	}
-}
-
-func (a *agent) SendMessage2App(destAppType, destAppid uint32, bm n.BaseMessage) {
-	dataReq := a.getTranData(destAppid, destAppType, uint32(bm.Cmd.MainCmdID), uint32(bm.Cmd.SubCmdID), uint32(router.EnuDataDirection_DT_App2App))
-	dataReq.DataBuff, _ = proto.Marshal(bm.MyMessage.(proto.Message))
-	cmd := n.TCPCommand{MainCmdID: uint16(n.CMDRouter), SubCmdID: uint16(router.CMDID_Router_IDDataMessageReq)}
-	transBM := n.BaseMessage{MyMessage: &dataReq, Cmd: cmd, TraceId: bm.TraceId}
-	a.SendMessage(transBM)
-}
-
-func (a *agent) SendMessage2Client(bm n.BaseMessage, userID, gateConnID, sessionID uint64) {
-	dataReq := a.getTranData(uint32(gateConnID>>32), n.AppGate, uint32(bm.Cmd.MainCmdID), uint32(bm.Cmd.SubCmdID), uint32(router.EnuDataDirection_DT_App2Client))
-	dataReq.DataBuff, _ = proto.Marshal(bm.MyMessage.(proto.Message))
-	dataReq.AttUserid = proto.Uint64(userID)
-	dataReq.AttGateconnid = proto.Uint64(gateConnID)
-	dataReq.AttSessionid = proto.Uint64(sessionID)
-	cmd := n.TCPCommand{MainCmdID: uint16(n.CMDRouter), SubCmdID: uint16(router.CMDID_Router_IDDataMessageReq)}
-	transBM := n.BaseMessage{MyMessage: &dataReq, Cmd: cmd, TraceId: bm.TraceId}
-	a.SendMessage(transBM)
-}
-
 func (a *agent) SendData(mainCmdID, subCmdID uint32, m proto.Message) {
 	data, err := proto.Marshal(m)
 	if err != nil {
@@ -431,22 +373,111 @@ func (a *agent) SendData(mainCmdID, subCmdID uint32, m proto.Message) {
 	}
 }
 
-func (a *agent) SendData2App(destAppType, destAppid, mainCmdID, subCmdID uint32, m proto.Message) {
-	dataReq := a.getTranData(destAppid, destAppType, mainCmdID, subCmdID, uint32(router.EnuDataDirection_DT_App2App))
-	dataReq.DataBuff, _ = proto.Marshal(m)
-	cmd := n.TCPCommand{MainCmdID: uint16(n.CMDRouter), SubCmdID: uint16(router.CMDID_Router_IDDataMessageReq)}
-	bm := n.BaseMessage{MyMessage: &dataReq, Cmd: cmd}
-	a.SendMessage(bm)
+func (a *agent) AgentInfo() n.BaseAgentInfo {
+	return a.info
 }
 
-func (a *agent) getTranData(destAppid, destAppType, dataKind, dataSubId, direction uint32) router.DataTransferReq {
-	var dataReq router.DataTransferReq
-	dataReq.SrcAppid = proto.Uint32(conf.AppID)
-	dataReq.SrcApptype = proto.Uint32(conf.AppType)
-	dataReq.DestAppid = proto.Uint32(destAppid)
-	dataReq.DestApptype = proto.Uint32(destAppType)
-	dataReq.DataCmdkind = proto.Uint32(dataKind)
-	dataReq.DataCmdsubid = proto.Uint32(dataSubId)
-	dataReq.DataDirection = proto.Uint32(direction)
-	return dataReq
+func sendRegAppReq(a *agentServer) {
+	var registerReq center.RegisterAppReq
+	registerReq.AuthKey = proto.String("GoldBaby")
+	registerReq.AppName = proto.String(conf.AppName)
+	registerReq.AppType = proto.Uint32(conf.AppType)
+	registerReq.AppId = proto.Uint32(conf.AppID)
+	registerReq.MyAddress = proto.String(conf.ListenOnAddress)
+	a.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDAppRegReq), &registerReq)
+}
+
+func SendData2App(destAppType, destAppid, mainCmdID, subCmdID uint32, m proto.Message) {
+	cmd := n.TCPCommand{MainCmdID: uint16(mainCmdID), SubCmdID: uint16(subCmdID)}
+	bm := n.BaseMessage{MyMessage: m, Cmd: cmd}
+	destAgents := getDestAppInfo(destAppType, destAppid)
+	for _, a := range destAgents {
+		a.SendMessage(bm)
+	}
+}
+
+func SendMessage2Client(bm n.BaseMessage, userID, gateConnID, sessionID uint64) {
+	var dataReq gate.TransferDataReq
+	dataReq.AttApptype = proto.Uint32(uint32(gateConnID >> 32))
+	dataReq.AttAppid = proto.Uint32(n.AppGate)
+	dataReq.DataCmdKind = proto.Uint32(uint32(bm.Cmd.MainCmdID))
+	dataReq.DataCmdSubid = proto.Uint32(uint32(bm.Cmd.SubCmdID))
+	dataReq.DataDirection = proto.Uint32(uint32(center.EnuDataDirection_DT_App2Client))
+	dataReq.Data, _ = proto.Marshal(bm.MyMessage.(proto.Message))
+	dataReq.AttUserid = proto.Uint64(userID)
+	dataReq.AttGateconnid = proto.Uint64(gateConnID)
+	dataReq.AttSessionid = proto.Uint64(sessionID)
+	cmd := n.TCPCommand{MainCmdID: uint16(n.CMDGate), SubCmdID: uint16(gate.CMDID_Gate_IDTransferDataReq)}
+	transBM := n.BaseMessage{MyMessage: &dataReq, Cmd: cmd, TraceId: bm.TraceId}
+	destAgents := getDestAppInfo(n.AppGate, uint32(gateConnID>>32))
+	for _, a := range destAgents {
+		a.SendMessage(transBM)
+	}
+}
+
+//func SendMessage2Client(bm n.BaseMessage, userID, gateConnID, sessionID uint64) {
+//	var dataReq gate.TransferDataReq
+//	dataReq.DestAppid = proto.Uint32(uint32(gateConnID >> 32))
+//	dataReq.DestApptype = proto.Uint32(n.AppGate)
+//	dataReq.DataCmdkind = proto.Uint32(uint32(bm.Cmd.MainCmdID))
+//	dataReq.DataCmdsubid = proto.Uint32(uint32(bm.Cmd.SubCmdID))
+//	dataReq.DataDirection = proto.Uint32(uint32(center.EnuDataDirection_DT_App2Client))
+//	dataReq.DataBuff, _ = proto.Marshal(bm.MyMessage.(proto.Message))
+//	dataReq.AttUserid = proto.Uint64(userID)
+//	dataReq.AttGateconnid = proto.Uint64(gateConnID)
+//	dataReq.AttSessionid = proto.Uint64(sessionID)
+//	cmd := n.TCPCommand{MainCmdID: uint16(n.CMDCenter), SubCmdID: uint16(center.CMDID_Center_IDDataMessageReq)}
+//	transBM := n.BaseMessage{MyMessage: &dataReq, Cmd: cmd, TraceId: bm.TraceId}
+//	destAgents := getDestAppInfo(n.AppGate, uint32(gateConnID>>32))
+//	for _, a := range destAgents {
+//		a.SendMessage(transBM)
+//	}
+//}
+
+func getDestAppInfo(destAppType, destAppid uint32) []*agentServer {
+	var destAgent []*agentServer
+	destTypeAppCount := func() int {
+		destCount := 0
+		for _, v := range servers {
+			if v.AppType == destAppType {
+				destCount++
+			}
+		}
+		return destCount
+	}
+	sendResult := false
+	if destTypeAppCount() != 0 {
+		switch destAppid {
+		case n.Send2All:
+			for _, v := range servers {
+				if v.AppType == destAppType {
+					destAgent = append(destAgent, v.a)
+				}
+			}
+			sendResult = true
+		case n.Send2AnyOne:
+			for _, v := range servers {
+				if v.AppType == destAppType {
+					destAgent = append(destAgent, v.a)
+					sendResult = true
+					break
+				}
+			}
+		default:
+			for _, v := range servers {
+				if v.AppType == destAppType && v.AppID == destAppid {
+					destAgent = append(destAgent, v.a)
+					sendResult = true
+					break
+				}
+			}
+		}
+	}
+
+	if !sendResult {
+		log.Error("转发", "异常,消息转发失败,%v,destAppType=%v,destAppid=%v",
+			destTypeAppCount(), destAppType, destAppid)
+	}
+
+	return destAgent
 }

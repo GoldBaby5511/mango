@@ -1,11 +1,11 @@
 package network
 
 import (
-	"xlddz/core/log"
 	"net"
 	"strings"
 	"sync"
 	"time"
+	"xlddz/core/log"
 )
 
 //TCPClient 客户端连接
@@ -15,7 +15,7 @@ type TCPClient struct {
 	ConnectInterval time.Duration
 	PendingWriteNum int
 	AutoReconnect   bool
-	NewAgent        func(*TCPConn) Agent
+	NewAgent        func(*TCPConn) AgentServer
 	conns           ConnSet
 	wg              sync.WaitGroup
 	closeFlag       bool
@@ -71,11 +71,9 @@ func (client *TCPClient) init() {
 
 	if client.ConnectInterval <= 0 {
 		client.ConnectInterval = 3 * time.Second
-		// log.Release("invalid ConnectInterval, reset to %v", client.ConnectInterval)
 	}
 	if client.PendingWriteNum <= 0 {
 		client.PendingWriteNum = 1000
-		// log.Release("invalid PendingWriteNum, reset to %v", client.PendingWriteNum)
 	}
 	if client.conns != nil {
 		log.Fatal("tcpclient", "client is running")
@@ -87,7 +85,6 @@ func (client *TCPClient) init() {
 		log.Fatal("tcpclient", "client.Addr为空")
 	}
 
-	client.AutoReconnect = true
 	client.conns = make(ConnSet)
 	client.closeFlag = false
 

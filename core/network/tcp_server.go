@@ -13,7 +13,7 @@ type TCPServer struct {
 	Addr            string
 	MaxConnNum      int
 	PendingWriteNum int
-	NewAgent        func(*TCPConn, uint64) Agent
+	NewAgent        func(*TCPConn, uint64) AgentClient
 	GetConfig       func(key string, defaultValue int64) int64
 	ln              net.Listener
 	conns           ConnSet

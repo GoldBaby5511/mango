@@ -1,8 +1,8 @@
 syntax = "proto2";
-package bs.router;
-option go_package ="/router";
+package bs.center;
+option go_package ="/center";
 
-enum CMDID_Router {
+enum CMDID_Center {
 	IDAppRegReq			=1;			//服务注册
 	IDAppRegRsp			=2;			//服务注册
 	IDAppState			=3;			//服务状态

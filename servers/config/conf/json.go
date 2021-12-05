@@ -5,12 +5,13 @@ import (
 	"io/ioutil"
 	lconf "xlddz/core/conf"
 	"xlddz/core/log"
+	n "xlddz/core/network"
 	aConfig "xlddz/servers/config/agollo/env/config"
 )
 
 var Server struct {
 	TCPClientAddr string
-	AppType       uint32
+	TCPAddr       string
 	AppID         uint32
 	AppName       string
 	MaxConnNum    int
@@ -43,6 +44,7 @@ func init() {
 	lconf.ConsolePort = Server.ConsolePort
 	lconf.AppName = Server.AppName
 	lconf.AppID = Server.AppID
-	lconf.AppType = Server.AppType
+	lconf.AppType = n.AppConfig
+	lconf.ListenOnAddress = Server.TCPAddr
 	log.Info("jsonconf", "配置文件载入成功%v", Server)
 }

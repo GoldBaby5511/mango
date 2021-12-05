@@ -1,6 +1,5 @@
 {
     "AppName": "AppGate",
-    "AppType": 5,
     "AppID": 102,
     "TCPAddr": "0.0.0.0:10102",
 	"TCPClientAddr": "127.0.0.1:10001"

@@ -1,0 +1,5 @@
+{
+    "AppName": "AppRouter",
+    "AppID": 10,
+    "TCPAddr": "0.0.0.0:10001"
+}

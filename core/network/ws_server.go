@@ -2,11 +2,11 @@ package network
 
 import (
 	"crypto/tls"
-	"xlddz/core/log"
 	"net"
 	"net/http"
 	"sync"
 	"time"
+	"xlddz/core/log"
 
 	"github.com/gorilla/websocket"
 )
@@ -19,7 +19,7 @@ type WSServer struct {
 	HTTPTimeout     time.Duration
 	CertFile        string
 	KeyFile         string
-	NewAgent        func(*WSConn) Agent
+	NewAgent        func(*WSConn) AgentClient
 	ln              net.Listener
 	handler         *WSHandler
 }
@@ -28,7 +28,7 @@ type WSHandler struct {
 	maxConnNum      int
 	pendingWriteNum int
 	maxMsgLen       uint32
-	newAgent        func(*WSConn) Agent
+	newAgent        func(*WSConn) AgentClient
 	upgrader        websocket.Upgrader
 	conns           WebsocketConnSet
 	mutexConns      sync.Mutex

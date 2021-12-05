@@ -14,15 +14,15 @@ import (
 	"xlddz/core/module"
 	n "xlddz/core/network"
 	"xlddz/core/network/protobuf"
-	"xlddz/protocol/router"
-	"xlddz/servers/router/conf"
+	"xlddz/protocol/center"
+	"xlddz/servers/center/conf"
 )
 
 var (
-	skeleton                                = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
-	appConnData map[n.Agent]*connectionData = make(map[n.Agent]*connectionData)
-	appRegData  map[uint64]*connectionData  = make(map[uint64]*connectionData)
-	processor                               = protobuf.NewProcessor()
+	skeleton                                      = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
+	appConnData map[n.AgentClient]*connectionData = make(map[n.AgentClient]*connectionData)
+	appRegData  map[uint64]*connectionData        = make(map[uint64]*connectionData)
+	processor                                     = protobuf.NewProcessor()
 )
 
 const (
@@ -37,11 +37,12 @@ type appRegInfo struct {
 	appId     uint32
 	regToken  string
 	appName   string
+	address   string
 	curStatus int
 }
 
 type connectionData struct {
-	a             n.Agent
+	a             n.AgentClient
 	regInfo       appRegInfo
 	lastHeartbeat int64
 }
@@ -49,21 +50,21 @@ type connectionData struct {
 func init() {
 	//消息注册
 	chanRPC := skeleton.ChanRPCServer
-	processor.Register(&router.RegisterAppReq{}, n.CMDRouter, uint16(router.CMDID_Router_IDAppRegReq), chanRPC)
-	processor.Register(&router.AppStateNotify{}, n.CMDRouter, uint16(router.CMDID_Router_IDAppState), chanRPC)
-	processor.Register(&router.DataTransferReq{}, n.CMDRouter, uint16(router.CMDID_Router_IDDataMessageReq), chanRPC)
-	processor.Register(&router.AppPulseNotify{}, n.CMDRouter, uint16(router.CMDID_Router_IDPulseNotify), chanRPC)
-	processor.Register(&router.AppOfflineReq{}, n.CMDRouter, uint16(router.CMDID_Router_IDAppOfflineReq), chanRPC)
-	processor.Register(&router.AppUpdateReq{}, n.CMDRouter, uint16(router.CMDID_Router_IDAppUpdateReq), chanRPC)
+	processor.Register(&center.RegisterAppReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppRegReq), chanRPC)
+	processor.Register(&center.AppStateNotify{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppState), chanRPC)
+	processor.Register(&center.DataTransferReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDDataMessageReq), chanRPC)
+	processor.Register(&center.AppPulseNotify{}, n.CMDCenter, uint16(center.CMDID_Center_IDPulseNotify), chanRPC)
+	processor.Register(&center.AppOfflineReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppOfflineReq), chanRPC)
+	processor.Register(&center.AppUpdateReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppUpdateReq), chanRPC)
 
 	chanRPC.Register(g.ConnectSuccess, connectSuccess)
 	chanRPC.Register(g.Disconnect, disconnect)
-	chanRPC.Register(reflect.TypeOf(&router.RegisterAppReq{}), handleRegisterAppReq)
-	chanRPC.Register(reflect.TypeOf(&router.AppStateNotify{}), handleAppStateNotify)
-	chanRPC.Register(reflect.TypeOf(&router.DataTransferReq{}), handleDataTransferReq)
-	chanRPC.Register(reflect.TypeOf(&router.AppPulseNotify{}), handleAppPulseNotify)
-	chanRPC.Register(reflect.TypeOf(&router.AppOfflineReq{}), handleAppOfflineReq)
-	chanRPC.Register(reflect.TypeOf(&router.AppUpdateReq{}), handleAppUpdateReq)
+	chanRPC.Register(reflect.TypeOf(&center.RegisterAppReq{}), handleRegisterAppReq)
+	chanRPC.Register(reflect.TypeOf(&center.AppStateNotify{}), handleAppStateNotify)
+	chanRPC.Register(reflect.TypeOf(&center.DataTransferReq{}), handleDataTransferReq)
+	chanRPC.Register(reflect.TypeOf(&center.AppPulseNotify{}), handleAppPulseNotify)
+	chanRPC.Register(reflect.TypeOf(&center.AppOfflineReq{}), handleAppOfflineReq)
+	chanRPC.Register(reflect.TypeOf(&center.AppUpdateReq{}), handleAppUpdateReq)
 
 	apollo.RegPublicCB(configChangeNotify)
 }
@@ -74,9 +75,9 @@ type Gate struct {
 
 func (m *Gate) OnInit() {
 	g.AgentChanRPC = skeleton.ChanRPCServer
+	g.Processor = processor
 	m.Gate = &g.Gate{
-		Processor: processor,
-		TCPAddr:   conf.Server.TCPAddr,
+		TCPAddr: conf.Server.TCPAddr,
 	}
 }
 
@@ -94,7 +95,7 @@ func (m *Module) OnDestroy() {}
 
 func connectSuccess(args []interface{}) {
 	log.Info("连接", "来了老弟,当前连接数=%d", len(appConnData))
-	a := args[g.AgentIndex].(n.Agent)
+	a := args[g.AgentIndex].(n.AgentClient)
 	if v, ok := appConnData[a]; ok {
 		log.Error("连接", "异常,重复连接?,%d,%d", v.regInfo.appType, v.regInfo.appId)
 		a.Close()
@@ -105,7 +106,7 @@ func connectSuccess(args []interface{}) {
 
 func disconnect(args []interface{}) {
 	log.Info("连接", "告辞中,当前连接数=%d", len(appConnData))
-	a := args[g.AgentIndex].(n.Agent)
+	a := args[g.AgentIndex].(n.AgentClient)
 	if v, ok := appConnData[a]; ok {
 		regKey := makeRegKey(v.regInfo.appType, v.regInfo.appId)
 		log.Info("连接", "再见,appType=%d,appId=%d,regKey=%d", v.regInfo.appType, v.regInfo.appId, regKey)
@@ -143,8 +144,9 @@ func configChangeNotify(k apollo.ConfKey, v apollo.ConfValue) {
 }
 
 func handleRegisterAppReq(args []interface{}) {
-	m := args[n.DATA_INDEX].(*router.RegisterAppReq)
-	a := args[n.AGENT_INDEX].(n.Agent)
+	b := args[n.DATA_INDEX].(n.BaseMessage)
+	m := (b.MyMessage).(*center.RegisterAppReq)
+	a := args[n.AGENT_INDEX].(n.AgentClient)
 
 	//连接存在判断
 	if _, ok := appConnData[a]; !ok {
@@ -166,11 +168,11 @@ func handleRegisterAppReq(args []interface{}) {
 				m.GetAppType(), m.GetAppId(), regKey)
 			log.Warning("连接", resultMsg)
 
-			var rsp router.RegisterAppRsp
+			var rsp center.RegisterAppRsp
 			rsp.RegResult = proto.Uint32(1)
 			rsp.ReregToken = proto.String(resultMsg)
 			rsp.RouterId = proto.Uint32(conf.Server.AppID)
-			a.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDAppRegRsp), &rsp)
+			a.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDAppRegRsp), &rsp)
 
 			a.Close()
 			return
@@ -183,16 +185,38 @@ func handleRegisterAppReq(args []interface{}) {
 	}
 	//信息存储
 	token := fmt.Sprintf("gb%x%x%x", rand.Int(), time.Now().UnixNano(), rand.Int())
-	appRegData[regKey].regInfo = appRegInfo{m.GetAppType(), m.GetAppId(), token, m.GetAppName(), registered}
+	appRegData[regKey].regInfo = appRegInfo{m.GetAppType(), m.GetAppId(), token, m.GetAppName(), m.GetMyAddress(), registered}
 
-	log.Debug("注册", "服务注册,appType=%v,appId=%v,regKey=%v",
-		m.GetAppType(), m.GetAppId(), regKey)
+	log.Debug("注册", "服务注册,appType=%v,appId=%v,regKey=%v,%v",
+		m.GetAppType(), m.GetAppId(), regKey, m.GetMyAddress())
 
-	var rsp router.RegisterAppRsp
+	var rsp center.RegisterAppRsp
 	rsp.RegResult = proto.Uint32(0)
 	rsp.ReregToken = proto.String(token)
 	rsp.RouterId = proto.Uint32(conf.Server.AppID)
-	a.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDAppRegRsp), &rsp)
+	rsp.AppName = proto.String(m.GetAppName())
+	rsp.AppType = proto.Uint32(m.GetAppType())
+	rsp.AppId = proto.Uint32(m.GetAppId())
+	rsp.AppAddress = proto.String(m.GetMyAddress())
+	for k, _ := range appConnData {
+		k.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDAppRegRsp), &rsp)
+	}
+
+	//广播已注册
+	for _, v := range appConnData {
+		if v.regInfo.appType == m.GetAppType() && v.regInfo.appId == m.GetAppId() {
+			continue
+		}
+		var rsp center.RegisterAppRsp
+		rsp.RegResult = proto.Uint32(0)
+		rsp.ReregToken = proto.String(v.regInfo.regToken)
+		rsp.RouterId = proto.Uint32(conf.Server.AppID)
+		rsp.AppName = proto.String(v.regInfo.appName)
+		rsp.AppType = proto.Uint32(v.regInfo.appType)
+		rsp.AppId = proto.Uint32(v.regInfo.appId)
+		rsp.AppAddress = proto.String(v.regInfo.address)
+		a.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDAppRegRsp), &rsp)
+	}
 }
 
 func handleAppStateNotify(args []interface{}) {
@@ -200,8 +224,9 @@ func handleAppStateNotify(args []interface{}) {
 }
 
 func handleDataTransferReq(args []interface{}) {
-	m := args[n.DATA_INDEX].(*router.DataTransferReq)
-	a := args[n.AGENT_INDEX].(n.Agent)
+	b := args[n.DATA_INDEX].(n.BaseMessage)
+	m := (b.MyMessage).(*center.DataTransferReq)
+	a := args[n.AGENT_INDEX].(n.AgentClient)
 
 	//连接存在判断
 	if _, ok := appConnData[a]; !ok {
@@ -211,6 +236,17 @@ func handleDataTransferReq(args []interface{}) {
 	}
 
 	if appConnData[a].regInfo.curStatus != registered {
+		log.Warning("转发", "兄弟,你状态有问题啊,"+
+			"SrcApptype=%v,SrcAppid=%v,"+
+			"DestApptype=%v,DestApptype=%v,"+
+			"Cmdkind=%v,Cmdsubid=%v,regInfo=%v",
+			m.GetSrcApptype(), m.GetSrcAppid(),
+			m.GetDestApptype(), m.GetDestAppid(),
+			m.GetDataCmdkind(), m.GetDataCmdsubid(), appConnData[a].regInfo)
+		return
+	}
+
+	if m.GetDestApptype() != n.AppCenter {
 		log.Warning("转发", "兄弟,你状态有问题啊,"+
 			"SrcApptype=%v,SrcAppid=%v,"+
 			"DestApptype=%v,DestApptype=%v,"+
@@ -233,7 +269,7 @@ func handleDataTransferReq(args []interface{}) {
 	if m.GetDestApptype() == n.AppCenter {
 		switch m.GetDataCmdkind() {
 		case n.CMDConfig:
-			apollo.ProcessReq(m)
+			//apollo.ProcessReq(m)
 		default:
 		}
 	} else {
@@ -252,14 +288,14 @@ func handleDataTransferReq(args []interface{}) {
 			case n.Send2All:
 				for k, v := range appConnData {
 					if v.regInfo.appType == m.GetDestApptype() && v.regInfo.curStatus != underMaintenance {
-						k.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDDataMessageReq), m)
+						k.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDDataMessageReq), m)
 					}
 				}
 				sendResult = true
 			case n.Send2AnyOne:
 				for k, v := range appConnData {
 					if v.regInfo.appType == m.GetDestApptype() && v.regInfo.curStatus != underMaintenance {
-						k.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDDataMessageReq), m)
+						k.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDDataMessageReq), m)
 						sendResult = true
 						break
 					}
@@ -267,7 +303,7 @@ func handleDataTransferReq(args []interface{}) {
 			default:
 				for k, v := range appConnData {
 					if v.regInfo.appType == m.GetDestApptype() && v.regInfo.appId == m.GetDestAppid() && v.regInfo.curStatus != underMaintenance {
-						k.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDDataMessageReq), m)
+						k.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDDataMessageReq), m)
 						sendResult = true
 						break
 					}
@@ -288,8 +324,9 @@ func handleDataTransferReq(args []interface{}) {
 }
 
 func handleAppPulseNotify(args []interface{}) {
-	m := args[n.DATA_INDEX].(*router.AppPulseNotify)
-	a := args[n.AGENT_INDEX].(n.Agent)
+	b := args[n.DATA_INDEX].(n.BaseMessage)
+	m := (b.MyMessage).(*center.AppPulseNotify)
+	a := args[n.AGENT_INDEX].(n.AgentClient)
 
 	//非法判断
 	if _, ok := appConnData[a]; !ok {
@@ -298,11 +335,11 @@ func handleAppPulseNotify(args []interface{}) {
 	}
 
 	switch m.GetAction() {
-	case router.AppPulseNotify_LogoutReq:
-	case router.AppPulseNotify_HeartBeatReq:
-		var rsp router.AppPulseNotify
-		rsp.Action = (*router.AppPulseNotify_PulseAction)(proto.Int32(int32(router.AppPulseNotify_HeartBeatRsp)))
-		a.SendData(n.CMDRouter, uint32(router.CMDID_Router_IDPulseNotify), &rsp)
+	case center.AppPulseNotify_LogoutReq:
+	case center.AppPulseNotify_HeartBeatReq:
+		var rsp center.AppPulseNotify
+		rsp.Action = (*center.AppPulseNotify_PulseAction)(proto.Int32(int32(center.AppPulseNotify_HeartBeatRsp)))
+		a.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDPulseNotify), &rsp)
 		appConnData[a].lastHeartbeat = time.Now().UnixNano()
 	}
 

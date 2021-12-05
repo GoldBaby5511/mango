@@ -18,9 +18,9 @@ import (
 )
 
 var (
-	skeleton                                = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
-	appConnData map[n.Agent]*connectionData = make(map[n.Agent]*connectionData)
-	processor                               = protobuf.NewProcessor()
+	skeleton                                      = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
+	appConnData map[n.AgentClient]*connectionData = make(map[n.AgentClient]*connectionData)
+	processor                                     = protobuf.NewProcessor()
 )
 
 const (
@@ -38,7 +38,7 @@ type appRegInfo struct {
 }
 
 type connectionData struct {
-	a             n.Agent
+	a             n.AgentClient
 	regInfo       appRegInfo
 	lastHeartbeat int64
 	baseFile      *os.File
@@ -62,10 +62,10 @@ type Gate struct {
 }
 
 func (m *Gate) OnInit() {
+	g.AgentChanRPC = skeleton.ChanRPCServer
+	g.Processor = processor
 	m.Gate = &g.Gate{
-		AgentChanRPC: skeleton.ChanRPCServer,
-		Processor:    processor,
-		TCPAddr:      conf.Server.TCPAddr,
+		TCPAddr: conf.Server.TCPAddr,
 	}
 }
 
@@ -83,7 +83,7 @@ func (m *Module) OnDestroy() {}
 
 func connectSuccess(args []interface{}) {
 	log.Info("连接", "来了老弟,当前连接数=%d", len(appConnData))
-	a := args[g.AgentIndex].(n.Agent)
+	a := args[g.AgentIndex].(n.AgentClient)
 	if v, ok := appConnData[a]; ok {
 		log.Error("连接", "异常,重复连接?,%d,%d", v.regInfo.appType, v.regInfo.appId)
 		a.Close()
@@ -94,7 +94,7 @@ func connectSuccess(args []interface{}) {
 
 func disconnect(args []interface{}) {
 	log.Info("连接", "告辞中,当前连接数=%d", len(appConnData))
-	a := args[g.AgentIndex].(n.Agent)
+	a := args[g.AgentIndex].(n.AgentClient)
 	if v, ok := appConnData[a]; ok {
 		regKey := makeRegKey(v.regInfo.appType, v.regInfo.appId)
 		log.Info("连接", "再见,appName=%v,appType=%d,appId=%d,regKey=%d",
@@ -111,8 +111,10 @@ func disconnect(args []interface{}) {
 }
 
 func handleLogReq(args []interface{}) {
-	m := args[n.DATA_INDEX].(*logger.LogReq)
-	a := args[n.AGENT_INDEX].(n.Agent)
+	b := args[n.DATA_INDEX].(n.BaseMessage)
+	m := (b.MyMessage).(*logger.LogReq)
+	//m := args[n.DATA_INDEX].(*logger.LogReq)
+	a := args[n.AGENT_INDEX].(n.AgentClient)
 
 	//连接存在判断
 	if _, ok := appConnData[a]; !ok {

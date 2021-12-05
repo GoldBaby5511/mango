@@ -2,7 +2,7 @@ package main
 
 import (
 	"xlddz/core"
-	"xlddz/servers/login/business"
+	"xlddz/servers/center/business"
 )
 
 func main() {

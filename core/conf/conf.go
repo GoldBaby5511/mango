@@ -9,7 +9,8 @@ var (
 	ProfilePath   string
 
 	//服务基础属性
-	AppName string
-	AppID   uint32
-	AppType uint32
+	AppName         string
+	AppID           uint32
+	AppType         uint32
+	ListenOnAddress string
 )

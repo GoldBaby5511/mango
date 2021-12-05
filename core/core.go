@@ -39,7 +39,7 @@ func Run(mods ...module.Module) {
 	if v, ok := parseArgs("/AppType"); ok {
 		conf.AppType = v
 	}
-	if conf.AppType == network.AppRouter {
+	if conf.AppType == network.AppCenter {
 		apollo.RegisterConfig("", conf.AppType, conf.AppID, nil)
 	}
 

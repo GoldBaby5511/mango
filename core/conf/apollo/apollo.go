@@ -11,13 +11,12 @@ import (
 	"xlddz/core/log"
 	"xlddz/core/network"
 	"xlddz/protocol/config"
-	"xlddz/protocol/router"
 )
 
 var (
 	configValues map[ConfKey]*ConfValue = make(map[ConfKey]*ConfValue)
 	regSubList   map[ConfKey]*ConfValue = make(map[ConfKey]*ConfValue)
-	routeAgent   network.Agent          = nil
+	routeAgent   network.AgentServer    = nil
 	apolloNotify []PublicCb
 	mutexConfig  sync.Mutex
 	mxRegSub     sync.Mutex
@@ -42,7 +41,7 @@ func init() {
 }
 
 //设置代理
-func SetRouterAgent(a network.Agent) {
+func SetRouterAgent(a network.AgentServer) {
 	routeAgent = a
 
 	//连接成功后开启定时订阅
@@ -69,11 +68,10 @@ func RouterDisconnect() {
 }
 
 //消息处理
-func ProcessReq(dataReq *router.DataTransferReq) error {
+func ProcessReq(cmd *network.TCPCommand, data []byte) error {
 	//消息处理
-	data := dataReq.GetDataBuff()
-	switch dataReq.GetDataCmdsubid() {
-	case uint32(config.CMDID_Config_IDApolloCfgRsp): //配置响应
+	switch cmd.SubCmdID {
+	case uint16(config.CMDID_Config_IDApolloCfgRsp): //配置响应
 		var m config.ApolloCfgRsp
 		proto.Unmarshal(data, &m)
 
@@ -115,7 +113,7 @@ func ProcessReq(dataReq *router.DataTransferReq) error {
 			}
 		}
 	default:
-		log.Info("apollo", "apollo,还未处理消息,%d", dataReq.GetDataCmdsubid())
+		log.Warning("apollo", "apollo,还未处理消息,%v", cmd)
 	}
 
 	return nil
@@ -180,7 +178,10 @@ func SendSubscribeReq(k ConfKey, cancel bool) {
 		Subscribe = config.ApolloCfgReq_UNSUBSCRIBE
 	}
 	req.Subscribe = proto.Uint32(uint32(Subscribe))
-	routeAgent.SendData2App(network.AppConfig, network.Send2AnyOne, network.CMDConfig, uint32(config.CMDID_Config_IDApolloCfgReq), &req)
+
+	cmd := network.TCPCommand{MainCmdID: uint16(network.AppConfig), SubCmdID: uint16(config.CMDID_Config_IDApolloCfgReq)}
+	bm := network.BaseMessage{MyMessage: &req, Cmd: cmd}
+	routeAgent.SendMessage(bm)
 }
 
 //注册回调

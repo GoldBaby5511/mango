@@ -41,7 +41,7 @@ type Agent struct {
 	reader *bufio.Reader
 }
 
-func newAgent(conn *network.TCPConn, id uint64) network.Agent {
+func newAgent(conn *network.TCPConn, id uint64) network.AgentClient {
 	a := new(Agent)
 	a.conn = conn
 	a.reader = bufio.NewReader(conn)
@@ -91,6 +91,9 @@ func (a *Agent) SendMessage(bm network.BaseMessage)                             
 func (a *Agent) SendMessage2App(destAppType, destAppid uint32, bm network.BaseMessage)           {}
 func (a *Agent) SendMessage2Client(bm network.BaseMessage, userID, gateConnID, sessionID uint64) {}
 func (a *Agent) SendData(mainCmdID, subCmdID uint32, m proto.Message)                            {}
+func (a *Agent) AgentInfo() network.BaseAgentInfo {
+	return network.BaseAgentInfo{}
+}
 func (a *Agent) SendData2App(DestApptype uint32, DestAppid uint32, mainCmdID uint32, subCmdID uint32, m proto.Message) {
 }
 func (a *Agent) LocalAddr() net.Addr {

@@ -1,9 +1,9 @@
 package network
 
 import (
-	"xlddz/core/log"
 	"sync"
 	"time"
+	"xlddz/core/log"
 
 	"github.com/gorilla/websocket"
 )
@@ -17,7 +17,7 @@ type WSClient struct {
 	MaxMsgLen        uint32
 	HandshakeTimeout time.Duration
 	AutoReconnect    bool
-	NewAgent         func(*WSConn) Agent
+	NewAgent         func(*WSConn) AgentClient
 	dialer           websocket.Dialer
 	conns            WebsocketConnSet
 	wg               sync.WaitGroup

@@ -5,18 +5,17 @@ import (
 	"io/ioutil"
 	lconf "xlddz/core/conf"
 	"xlddz/core/log"
+	n "xlddz/core/network"
 )
 
 var Server struct {
-	TCPClientAddr string
-	TCPAddr       string
-	AppType       uint32
-	AppID         uint32
-	AppName       string
+	AppName string
+	AppID   uint32
+	TCPAddr string
 }
 
 func init() {
-	data, err := ioutil.ReadFile("conf/login.json")
+	data, err := ioutil.ReadFile("conf/center.json")
 	if err != nil {
 		log.Fatal("jsonconf", "%v", err)
 	}
@@ -26,8 +25,7 @@ func init() {
 	}
 
 	lconf.AppName = Server.AppName
-	lconf.AppType = Server.AppType
+	lconf.AppType = n.AppCenter
 	lconf.AppID = Server.AppID
-	lconf.ListenOnAddress = Server.TCPAddr
 	log.Info("jsonconf", "配置文件载入成功%v", Server)
 }

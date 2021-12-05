@@ -1,8 +1,8 @@
 {
     "AppName": "AppConfig",
-    "AppType": 1,
     "AppID": 1,
     "TCPClientAddr": "127.0.0.1:10001",
+    "TCPAddr": "0.0.0.0:10011",
     "MaxConnNum": 20000,
     "ConsolePort": 0,
     "UseApollo": false,
@@ -25,8 +25,8 @@
 		{
             "appid":"",
             "cluster":"",
-            "namespaceName":"common-server-router.json",
-            "servertype":6,
+            "namespaceName":"common-server-center.json",
+            "servertype":1,
             "serverid":0
         },
         {

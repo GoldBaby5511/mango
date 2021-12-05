@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"github.com/fsnotify/fsnotify"
 	"google.golang.org/protobuf/proto"
-	_ "google.golang.org/protobuf/proto"
 	"io/ioutil"
-	"xlddz/core/chanrpc"
+	"reflect"
+	lconf "xlddz/core/conf"
 	"xlddz/core/conf/apollo"
 	g "xlddz/core/gate"
 	"xlddz/core/log"
+	"xlddz/core/module"
 	n "xlddz/core/network"
 	"xlddz/core/network/protobuf"
+	"xlddz/protocol/center"
 	"xlddz/protocol/config"
 	"xlddz/servers/config/agollo"
 	aConfig "xlddz/servers/config/agollo/env/config"
@@ -22,46 +24,64 @@ import (
 
 var (
 	listenerList []*configChangeListener
-	routeAgent   n.Agent
+	skeleton     = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
+	processor    = protobuf.NewProcessor()
 )
 
-type Module struct {
+func init() {
+	//消息注册
+	chanRPC := skeleton.ChanRPCServer
+	processor.Register(&center.DataTransferReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDDataMessageReq), chanRPC)
+	processor.Register(&config.ApolloCfgReq{}, n.CMDConfig, uint16(config.CMDID_Config_IDApolloCfgReq), chanRPC)
+
+	chanRPC.Register(reflect.TypeOf(&center.DataTransferReq{}), handleDataTransferReq)
+	chanRPC.Register(reflect.TypeOf(&config.ApolloCfgReq{}), handleApolloCfgReq)
+
+	chanRPC.Register(g.ConnectSuccess, connectSuccess)
+	chanRPC.Register(g.Disconnect, disconnect)
+	chanRPC.Register(g.RouterConnected, routerConnected)
+	chanRPC.Register(g.RouterRegResult, routerRegResult)
+}
+
+type Gate struct {
 	*g.Gate
+}
+
+func (m *Gate) OnInit() {
+	g.AgentChanRPC = skeleton.ChanRPCServer
+	g.Processor = processor
+	m.Gate = &g.Gate{
+		TCPAddr:       conf.Server.TCPAddr,
+		TCPClientAddr: conf.Server.TCPClientAddr,
+	}
+}
+
+type Module struct {
+	*module.Skeleton
 }
 
 func (m *Module) OnInit() {
 
 	log.Debug("Module", "配置中心初始化")
-
-	//消息注册
-	p := protobuf.NewProcessor()
-	p.RegHandle(&config.ApolloCfgReq{}, n.CMDConfig, uint16(config.CMDID_Config_IDApolloCfgReq), handleApolloCfgReq)
-
-	chanRPC := chanrpc.NewServer(10)
-	chanRPC.Register(g.RouterConnected, routerConnected)
-	chanRPC.Register(g.RouterRegResult, routerRegResult)
-
-	go func() {
-		for {
-			ci := <-chanRPC.ChanCall
-			chanRPC.Exec(ci)
-		}
-	}()
-
-	m.Gate = &g.Gate{
-		Processor:     p,
-		TCPClientAddr: conf.Server.TCPClientAddr,
-		AgentChanRPC:  chanRPC,
-	}
-
+	m.Skeleton = skeleton
 	loadConfigs()
+}
+
+func (m *Module) OnDestroy() {}
+
+func connectSuccess(args []interface{}) {
+	log.Info("连接", "来了老弟,参数数量=%d", len(args))
+}
+
+func disconnect(args []interface{}) {
+	log.Info("连接", "告辞中,参数数量=%d", len(args))
 }
 
 func loadConfigs() {
 	//是否使用Apollo
 	if conf.Server.UseApollo {
 		c := &conf.Server.Config
-		listenerConf := conf.ApolloConfig{ServerType: conf.Server.AppType, ServerId: conf.Server.AppID}
+		listenerConf := conf.ApolloConfig{ServerType: lconf.AppType, ServerId: conf.Server.AppID}
 		listener := newListener(c, listenerConf)
 		agollo.SetLogger(&DefaultLogger{})
 		client, _ := agollo.StartWithConfig(func() (*aConfig.AppConfig, error) {
@@ -138,21 +158,20 @@ func loadConfigs() {
 }
 
 func routerConnected(args []interface{}) {
-	routeAgent = args[g.AgentIndex].(n.Agent)
 }
 
 func routerRegResult(args []interface{}) {
 	r := args[0].(uint32)
 	routerId := args[1].(uint32)
 	if r == 0 {
-		listerIndex := getListenerIndex(n.AppRouter, routerId)
+		listerIndex := getListenerIndex(n.AppCenter, routerId)
 		if listerIndex < 0 {
 			log.Warning("配置", "router配置不存在,listerIndex=%v,appType=%v,routerId=%v",
-				listerIndex, n.AppRouter, routerId)
+				listerIndex, n.AppCenter, routerId)
 			return
 		}
 
-		listenerList[listerIndex].addSubscriptionItem(n.AppRouter, routerId, n.AppRouter, routerId, "")
+		listenerList[listerIndex].addSubscriptionItem(n.AppCenter, routerId, n.AppCenter, routerId, "")
 		listenerList[listerIndex].notifySubscriptionList("")
 	}
 }
@@ -231,12 +250,6 @@ func (c *configChangeListener) addSubscriptionItem(appType, appId uint32, subApp
 }
 
 func (c *configChangeListener) notifySubscriptionList(changeKey string) {
-	if routeAgent == nil {
-		log.Error("通知", "异常,准备通知时router为空,len=%v,changeKey=%v,type=%v,id=%v",
-			len(c.subscriptionList), changeKey, c.appType, c.appId)
-		return
-	}
-
 	for k, v := range c.subscriptionList {
 		if v.Key != "" && v.Key != changeKey {
 			continue
@@ -262,9 +275,11 @@ func (c *configChangeListener) notifySubscriptionList(changeKey string) {
 		}
 		appType := uint32(k >> 32)
 		appId := uint32(k & 0xFFFFFFFF)
+
 		log.Debug("通知", "下发通知,appType=%v, appId=%v,SubAppType=%v, SubAppId=%v,changeKey=%v",
 			appType, appId, v.AppType, v.AppId, changeKey)
-		routeAgent.SendData2App(appType, appId, n.CMDConfig, uint32(config.CMDID_Config_IDApolloCfgRsp), &rsp)
+
+		g.SendData2App(appType, appId, n.CMDConfig, uint32(config.CMDID_Config_IDApolloCfgRsp), &rsp)
 	}
 }
 
@@ -388,7 +403,13 @@ func (d *DefaultLogger) Warn(v ...interface{}) {
 func (d *DefaultLogger) Error(v ...interface{}) {
 	log.Error("agollo", "%v", fmt.Sprint(v...))
 }
+func handleDataTransferReq(args []interface{}) {
+	//m := args[n.DATA_INDEX].(*center.DataTransferReq)
+	//a := args[n.AGENT_INDEX].(n.AgentClient)
 
+	log.Debug("", "收到了，有点意思了")
+
+}
 func handleApolloCfgReq(args []interface{}) {
 	b := args[n.DATA_INDEX].(n.BaseMessage)
 	m := (b.MyMessage).(*config.ApolloCfgReq)
