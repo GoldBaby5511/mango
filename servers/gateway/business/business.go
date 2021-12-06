@@ -11,7 +11,6 @@ import (
 	"xlddz/core/module"
 	n "xlddz/core/network"
 	"xlddz/core/network/protobuf"
-	"xlddz/protocol/center"
 	"xlddz/protocol/client"
 	gcmd "xlddz/protocol/gate"
 	"xlddz/servers/gateway/conf"
@@ -39,16 +38,14 @@ func init() {
 	processor.Register(&gcmd.TransferDataReq{}, n.CMDGate, uint16(gcmd.CMDID_Gate_IDTransferDataReq), chanRPC)
 	processor.Register(&gcmd.AuthInfo{}, n.CMDGate, uint16(gcmd.CMDID_Gate_IDAuthInfo), chanRPC)
 	processor.Register(&gcmd.HelloReq{}, n.CMDGate, uint16(gcmd.CMDID_Gate_IDHelloReq), chanRPC)
-	processor.Register(&center.DataTransferRsp{}, n.CMDCenter, uint16(center.CMDID_Center_IDDataMessageReq), chanRPC)
 
 	chanRPC.Register(g.ConnectSuccess, connectSuccess)
 	chanRPC.Register(g.Disconnect, disconnect)
-	chanRPC.Register(g.RouterConnected, routerConnected)
+	chanRPC.Register(g.CenterConnected, routerConnected)
 	chanRPC.Register(reflect.TypeOf(&gcmd.PulseReq{}), handlePulseReq)
 	chanRPC.Register(reflect.TypeOf(&gcmd.TransferDataReq{}), handleTransferDataReq)
 	chanRPC.Register(reflect.TypeOf(&gcmd.AuthInfo{}), handleAuthInfo)
 	chanRPC.Register(reflect.TypeOf(&gcmd.HelloReq{}), handleHelloReq)
-	chanRPC.Register(reflect.TypeOf(&center.DataTransferRsp{}), handRouterDataMessageReq)
 }
 
 type Gate struct {
@@ -143,33 +140,21 @@ func handleTransferDataReq(args []interface{}) {
 	}
 
 	log.Debug("module", "n.CMDGate,消息转发,type=%v,appid=%v,kind=%v,sub=%v,connId=%v,%v,%v",
-		m.GetAttApptype(), m.GetAttAppid(), m.GetDataCmdKind(), m.GetDataCmdSubid(), connData.connId, m.GetAttGateconnid(), a.AgentInfo().AgentType)
+		m.GetAttApptype(), m.GetAttAppid(), m.GetDataCmdKind(), m.GetDataCmdSubid(), connData.connId, m.GetGateconnid(), a.AgentInfo().AgentType)
 
-	if m.GetAttGateconnid() != 0 && a.AgentInfo().AgentType == n.CommonServer {
-		a, err := getUserAgent(m.GetAttGateconnid())
+	if m.GetGateconnid() != 0 && a.AgentInfo().AgentType == n.CommonServer {
+		a, err := getUserAgent(m.GetGateconnid())
 		if err != nil {
 			log.Error("消息转发", "根本没找到用户连接,"+
-				"AttUserid=%v,AttGateconnid=%v,connId=%v",
-				m.GetAttUserid(), m.GetAttGateconnid(),
-				m.GetAttGateconnid()&0xFFFFFFFF)
+				"AttGateconnid=%v,connId=%v",
+				m.GetGateconnid(),
+				m.GetGateconnid()&0xFFFFFFFF)
 			return
 		}
 		a.SendData(n.CMDGate, uint32(gcmd.CMDID_Gate_IDTransferDataReq), m)
 	} else {
-		//var dataReq center.DataTransferReq
-		//dataReq.SrcAppid = proto.Uint32(conf.Server.AppID)
-		//dataReq.SrcApptype = proto.Uint32(lconf.AppType)
-		//dataReq.DestAppid = proto.Uint32(m.GetAttAppid())
-		//dataReq.DestApptype = proto.Uint32(m.GetAttApptype())
-		//dataReq.DataCmdkind = proto.Uint32(m.GetDataCmdKind())
-		//dataReq.DataCmdsubid = proto.Uint32(m.GetDataCmdSubid())
-		//dataReq.DataBuff = m.GetData()
-		//dataReq.DataDirection = proto.Uint32(uint32(center.EnuDataDirection_DT_App2App))
-		//dataReq.AttGateid = proto.Uint32(conf.Server.AppID)
-		//dataReq.AttGateconnid = proto.Uint64(makeGateConnID(connData.connId))
-		//dataReq.DataDirection = proto.Uint32(uint32(center.EnuDataDirection_DT_App2App))
-		m.AttGateid = proto.Uint32(conf.Server.AppID)
-		m.AttGateconnid = proto.Uint64(makeGateConnID(connData.connId))
+		m.Gateid = proto.Uint32(conf.Server.AppID)
+		m.Gateconnid = proto.Uint64(makeGateConnID(connData.connId))
 		g.SendData2App(m.GetAttApptype(), m.GetAttAppid(), n.CMDGate, uint32(gcmd.CMDID_Gate_IDTransferDataReq), m)
 	}
 
@@ -227,46 +212,17 @@ func getUserAgent(gateConnId uint64) (n.AgentClient, error) {
 	return connData.a, nil
 }
 
-func handRouterDataMessageReq(args []interface{}) {
-	b := args[n.DATA_INDEX].(n.BaseMessage)
-	m := (b.MyMessage).(*center.DataTransferReq)
-
-	a, err := getUserAgent(m.GetAttGateconnid())
-	if err != nil {
-		log.Error("消息转发", "根本没找到用户连接,"+
-			"SrcApptype=%v,SrcAppid=%v,"+
-			"DataCmdkind=%v,DataCmdsubid=%v,"+
-			"AttUserid=%v,AttGateconnid=%v,connId=%v",
-			m.GetSrcApptype(), m.GetSrcAppid(),
-			m.GetDataCmdkind(), m.GetDataCmdsubid(),
-			m.GetAttUserid(), m.GetAttGateconnid(),
-			m.GetAttGateconnid()&0xFFFFFFFF)
-		return
-	}
-
-	log.Debug("module", "消息回传,connId=%v,connId=%v", m.GetAttGateconnid(), m.GetAttGateconnid()&0xFFFFFFFF)
-
-	var req gcmd.TransferDataReq
-	req.DataCmdKind = proto.Uint32(m.GetDataCmdkind())
-	req.DataCmdSubid = proto.Uint32(m.GetDataCmdsubid())
-	req.AttApptype = proto.Uint32(m.GetSrcApptype())
-	req.AttAppid = proto.Uint32(m.GetSrcAppid())
-	req.Data = m.GetDataBuff()
-	req.AttSessionid = proto.Uint64(m.GetAttSessionid())
-	a.SendData(n.CMDGate, uint32(gcmd.CMDID_Gate_IDTransferDataReq), &req)
-}
-
 func checkConnectionAlive() {
 
 	var da []connectionData
 	for _, v := range userConnData {
-		if time.Now().Unix()-v.lastPulseTk > apollo.GetConfigAsInt64("心跳间隔", 180) {
+		if time.Now().Unix()-v.lastPulseTk > apollo.GetConfigAsInt64("心跳间隔", 180) && v.a.AgentInfo().AgentType != n.CommonServer {
 			da = append(da, *v)
 		}
 	}
 
 	for _, c := range da {
-		log.Debug("心跳", "心跳超时断开,userId=%v,connId=%v", c.userId, c.connId)
+		log.Debug("心跳", "心跳超时断开,userId=%v,connId=%v,info=%v", c.userId, c.connId, c.a.AgentInfo())
 		c.a.Close()
 	}
 

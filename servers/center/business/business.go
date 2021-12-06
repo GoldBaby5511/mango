@@ -52,7 +52,6 @@ func init() {
 	chanRPC := skeleton.ChanRPCServer
 	processor.Register(&center.RegisterAppReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppRegReq), chanRPC)
 	processor.Register(&center.AppStateNotify{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppState), chanRPC)
-	processor.Register(&center.DataTransferReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDDataMessageReq), chanRPC)
 	processor.Register(&center.AppPulseNotify{}, n.CMDCenter, uint16(center.CMDID_Center_IDPulseNotify), chanRPC)
 	processor.Register(&center.AppOfflineReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppOfflineReq), chanRPC)
 	processor.Register(&center.AppUpdateReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppUpdateReq), chanRPC)
@@ -61,7 +60,6 @@ func init() {
 	chanRPC.Register(g.Disconnect, disconnect)
 	chanRPC.Register(reflect.TypeOf(&center.RegisterAppReq{}), handleRegisterAppReq)
 	chanRPC.Register(reflect.TypeOf(&center.AppStateNotify{}), handleAppStateNotify)
-	chanRPC.Register(reflect.TypeOf(&center.DataTransferReq{}), handleDataTransferReq)
 	chanRPC.Register(reflect.TypeOf(&center.AppPulseNotify{}), handleAppPulseNotify)
 	chanRPC.Register(reflect.TypeOf(&center.AppOfflineReq{}), handleAppOfflineReq)
 	chanRPC.Register(reflect.TypeOf(&center.AppUpdateReq{}), handleAppUpdateReq)
@@ -221,106 +219,6 @@ func handleRegisterAppReq(args []interface{}) {
 
 func handleAppStateNotify(args []interface{}) {
 
-}
-
-func handleDataTransferReq(args []interface{}) {
-	b := args[n.DATA_INDEX].(n.BaseMessage)
-	m := (b.MyMessage).(*center.DataTransferReq)
-	a := args[n.AGENT_INDEX].(n.AgentClient)
-
-	//连接存在判断
-	if _, ok := appConnData[a]; !ok {
-		log.Error("连接", "异常,么有连接的注册?")
-		a.Close()
-		return
-	}
-
-	if appConnData[a].regInfo.curStatus != registered {
-		log.Warning("转发", "兄弟,你状态有问题啊,"+
-			"SrcApptype=%v,SrcAppid=%v,"+
-			"DestApptype=%v,DestApptype=%v,"+
-			"Cmdkind=%v,Cmdsubid=%v,regInfo=%v",
-			m.GetSrcApptype(), m.GetSrcAppid(),
-			m.GetDestApptype(), m.GetDestAppid(),
-			m.GetDataCmdkind(), m.GetDataCmdsubid(), appConnData[a].regInfo)
-		return
-	}
-
-	if m.GetDestApptype() != n.AppCenter {
-		log.Warning("转发", "兄弟,你状态有问题啊,"+
-			"SrcApptype=%v,SrcAppid=%v,"+
-			"DestApptype=%v,DestApptype=%v,"+
-			"Cmdkind=%v,Cmdsubid=%v,regInfo=%v",
-			m.GetSrcApptype(), m.GetSrcAppid(),
-			m.GetDestApptype(), m.GetDestAppid(),
-			m.GetDataCmdkind(), m.GetDataCmdsubid(), appConnData[a].regInfo)
-		return
-	}
-
-	log.Debug("转发", "消息转发,"+
-		"SrcApptype=%v,SrcAppid=%v,"+
-		"DestApptype=%v,DestApptype=%v,"+
-		"Cmdkind=%v,Cmdsubid=%v",
-		m.GetSrcApptype(), m.GetSrcAppid(),
-		m.GetDestApptype(), m.GetDestAppid(),
-		m.GetDataCmdkind(), m.GetDataCmdsubid())
-
-	//目的判断
-	if m.GetDestApptype() == n.AppCenter {
-		switch m.GetDataCmdkind() {
-		case n.CMDConfig:
-			//apollo.ProcessReq(m)
-		default:
-		}
-	} else {
-		destTypeAppCount := func() int {
-			destCount := 0
-			for _, v := range appConnData {
-				if v.regInfo.appType == m.GetDestApptype() {
-					destCount++
-				}
-			}
-			return destCount
-		}
-		sendResult := false
-		if destTypeAppCount() != 0 {
-			switch m.GetDestAppid() {
-			case n.Send2All:
-				for k, v := range appConnData {
-					if v.regInfo.appType == m.GetDestApptype() && v.regInfo.curStatus != underMaintenance {
-						k.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDDataMessageReq), m)
-					}
-				}
-				sendResult = true
-			case n.Send2AnyOne:
-				for k, v := range appConnData {
-					if v.regInfo.appType == m.GetDestApptype() && v.regInfo.curStatus != underMaintenance {
-						k.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDDataMessageReq), m)
-						sendResult = true
-						break
-					}
-				}
-			default:
-				for k, v := range appConnData {
-					if v.regInfo.appType == m.GetDestApptype() && v.regInfo.appId == m.GetDestAppid() && v.regInfo.curStatus != underMaintenance {
-						k.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDDataMessageReq), m)
-						sendResult = true
-						break
-					}
-				}
-			}
-		}
-
-		if !sendResult {
-			log.Error("转发", "异常,消息转发失败,"+
-				"SrcApptype=%v,SrcAppid=%v,"+
-				"DestApptype=%v,DestApptype=%v,"+
-				"Cmdkind=%v,Cmdsubid=%v,目标app数量=%d",
-				m.GetSrcApptype(), m.GetSrcAppid(),
-				m.GetDestApptype(), m.GetDestAppid(),
-				m.GetDataCmdkind(), m.GetDataCmdsubid(), destTypeAppCount())
-		}
-	}
 }
 
 func handleAppPulseNotify(args []interface{}) {

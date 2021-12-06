@@ -70,7 +70,7 @@ func disconnect(args []interface{}) {
 }
 
 func handleLoginReq(args []interface{}) {
-	a := args[n.AGENT_INDEX].(n.AgentClient)
+	//a := args[n.AGENT_INDEX].(n.AgentClient)
 	b := args[n.DATA_INDEX].(n.BaseMessage)
 	m := (b.MyMessage).(*client.LoginReq)
 	srcData := args[n.OTHER_INDEX].(*gate.TransferDataReq)
@@ -79,7 +79,7 @@ func handleLoginReq(args []interface{}) {
 
 	log.Debug("登录", "收到登录,主渠道=%d,子渠道=%d,userCount=%v", m.GetChannelId(), m.GetSiteId(), userCount)
 
-	sendLoginRsp(a, srcData.GetAttGateconnid(), "成功", int32(client.LoginRsp_SUCCESS))
+	sendLoginRsp(srcData.GetGateconnid(), "成功", int32(client.LoginRsp_SUCCESS))
 }
 
 func handleLogoutReq(args []interface{}) {
@@ -89,7 +89,7 @@ func handleLogoutReq(args []interface{}) {
 }
 
 // 发送登录响应
-func sendLoginRsp(a n.AgentClient, gateConnId uint64, info string, code int32) {
+func sendLoginRsp(gateConnId uint64, info string, code int32) {
 	log.Info("登录", "发送登录响应,gateConnId=%v,info=%v,code=%v", gateConnId, info, code)
 
 	var rsp client.LoginRsp
@@ -101,5 +101,5 @@ func sendLoginRsp(a n.AgentClient, gateConnId uint64, info string, code int32) {
 
 	rspBm := n.BaseMessage{MyMessage: &rsp, TraceId: ""}
 	rspBm.Cmd = n.TCPCommand{MainCmdID: uint16(n.CMDClient), SubCmdID: uint16(client.CMDID_Client_IDLoginRsp)}
-	g.SendMessage2Client(rspBm, 0, gateConnId, 0)
+	g.SendMessage2Client(rspBm, gateConnId, 0)
 }

@@ -3,6 +3,7 @@ package gate
 import (
 	"google.golang.org/protobuf/proto"
 	"reflect"
+	"time"
 	"xlddz/core/conf"
 	"xlddz/core/conf/apollo"
 	"xlddz/core/log"
@@ -10,137 +11,138 @@ import (
 	"xlddz/protocol/center"
 )
 
-type ServerItem struct {
+type agentServer struct {
 	tcpClient *n.TCPClient
-	a         *agentServer
-	AppName   string
-	AppID     uint32
-	AppType   uint32
-	Address   string
+	conn      n.Conn
+	info      n.BaseAgentInfo
 }
 
-func NewServerItem(name, addr string, appType, id uint32) *ServerItem {
-	s := new(ServerItem)
-	s.tcpClient = new(n.TCPClient)
-	s.a = nil
-	s.AppName = name
-	s.AppID = id
-	s.AppType = appType
-	s.Address = addr
+func newServerItem(info n.BaseAgentInfo, autoReconnect bool, pendingWriteNum int) {
+	if info.ListenOnAddress == "" {
+		log.Warning("agentServer", "警告,没地址怎么连接?,info=%v,autoReconnect=%v,pendingWriteNum=%v",
+			info, autoReconnect, pendingWriteNum)
+		return
+	}
 
-	if s.Address != "" {
-		s.tcpClient = new(n.TCPClient)
-		s.tcpClient.Addr = s.Address
-		s.tcpClient.AutoReconnect = false
-		s.tcpClient.NewAgent = func(conn *n.TCPConn) n.AgentServer {
-			s.a = &agentServer{conn: conn, s: s}
-			log.Debug("", "互联成功,%v,%v,%v,%v", s.AppName, s.AppType, s.AppID, s.Address)
-			sendRegAppReq(s.a)
-			if n.AppConfig == s.AppType {
-				apollo.SetRouterAgent(s.a)
-				apollo.RegisterConfig("", conf.AppType, conf.AppID, nil)
+	tcpClient := new(n.TCPClient)
+	tcpClient.Addr = info.ListenOnAddress
+	tcpClient.PendingWriteNum = pendingWriteNum
+	tcpClient.AutoReconnect = autoReconnect
+	tcpClient.NewAgent = func(conn *n.TCPConn) n.AgentServer {
+		a := &agentServer{tcpClient: tcpClient, conn: conn, info: info}
+		log.Debug("agentServer", "连接成功,%v", a.info)
+		sendRegAppReq(a)
+		timeInterval := 30 * time.Second
+		timerHeartbeat := time.NewTimer(timeInterval)
+		go func(t *time.Timer) {
+			for {
+				<-t.C
+				var appPulseNotify center.AppPulseNotify
+				appPulseNotify.Action = (*center.AppPulseNotify_PulseAction)(proto.Int32(int32(center.AppPulseNotify_HeartBeatReq)))
+				appPulseNotify.PulseData = proto.Uint64(uint64(time.Now().Unix()))
+				a.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDPulseNotify), &appPulseNotify)
+
+				t.Reset(timeInterval)
 			}
+		}(timerHeartbeat)
 
-			servers[uint64(appType)<<32|uint64(id)] = s
-			return s.a
+		if n.AppConfig == info.AppType {
+			apollo.SetNetAgent(a)
+			apollo.RegisterConfig("", conf.AppType, conf.AppID, nil)
 		}
 
-		log.Debug("", "开始互联,%v,%v,%v,%v", s.AppName, s.AppType, s.AppID, s.Address)
-
-		s.tcpClient.Start()
-	} else {
-		log.Warning("", "没有地址?,%v,%v,%v,%v", s.AppName, s.AppType, s.AppID, s.Address)
+		mxServers.Lock()
+		servers[uint64(info.AppType)<<32|uint64(info.AppID)] = a
+		mxServers.Unlock()
+		return a
 	}
-	return s
-}
 
-func (s *ServerItem) Close() {
-	if s.tcpClient != nil {
-		s.tcpClient.Close()
+	log.Debug("agentServer", "开始连接,%v", info)
+
+	if tcpClient != nil {
+		tcpClient.Start()
 	}
-}
-
-type agentServer struct {
-	conn    n.Conn
-	s       *ServerItem
-	AppName string
-	AppID   uint32
-	AppType uint32
-	Address string
 }
 
 func (a *agentServer) Run() {
 	for {
 		bm, msgData, err := a.conn.ReadMsg()
 		if err != nil {
-			log.Warning("agentServer", "异常,网关读取消息失败,id=%v,agentServerType=%v,err=%v", a.AppID, a.AppType, err)
+			log.Warning("agentServer", "异常,网关读取消息失败,info=%v,err=%v", a.info, err)
 			break
 		}
 
 		if bm.Cmd.MainCmdID != uint16(n.CMDCenter) {
-			log.Warning("", "不可能出现非router消息")
+			log.Warning("", "不可能出现非center消息,cmd=%v", bm.Cmd)
 			break
 		}
 
-		//构造参数，全新改造中，暂时这么用着
-		//log.Debug("", "成功了一半,收到消息,%v", headCmd)
-
 		switch bm.Cmd.SubCmdID {
-		case uint16(center.CMDID_Center_IDAppRegRsp): //router注册消息
+		case uint16(center.CMDID_Center_IDAppRegRsp):
 			var m center.RegisterAppRsp
 			_ = proto.Unmarshal(msgData, &m)
 
 			if m.GetRegResult() == 0 {
-				log.Info("agent", "注册成功,regToken=%v,RouterId=%v,%v,%v,%v,%v",
+				log.Info("agentServer", "注册成功,regToken=%v,RouterId=%v,%v,%v,%v,%v",
 					m.GetReregToken(), m.GetRouterId(), m.GetAppName(), m.GetAppType(), m.GetAppId(), m.GetAppAddress())
 
 				//获取配置
+				mxServers.Lock()
 				_, ok := servers[uint64(m.GetAppType())<<32|uint64(m.GetAppId())]
+				mxServers.Unlock()
 				if !(conf.AppType == m.GetAppType() && conf.AppID == m.GetAppId()) && !ok {
-					NewServerItem(m.GetAppName(), m.GetAppAddress(), m.GetAppType(), m.GetAppId())
-				}
-
-				if conf.AppType == n.AppConfig {
-					if _, ok := servers[uint64(n.AppCenter)<<32|uint64(0)]; ok {
-						servers[uint64(n.AppCenter)<<32|uint64(0)].AppID = m.GetRouterId()
+					if m.GetAppAddress() != "" {
+						info := n.BaseAgentInfo{AgentType: n.CommonServer, AppName: m.GetAppName(), AppType: m.GetAppType(), AppID: m.GetAppId(), ListenOnAddress: m.GetAppAddress()}
+						log.Debug("agentServer", "开始互联,%v", info)
+						newServerItem(info, false, 0)
+					} else {
+						log.Warning("agentServer", "没有地址?,%v,%v,%v,%v",
+							m.GetAppName(), m.GetAppType(), m.GetAppId(), m.GetAppAddress())
 					}
 				}
 
+				if conf.AppType == n.AppConfig {
+					mxServers.Lock()
+					if _, ok := servers[uint64(n.AppCenter)<<32|uint64(0)]; ok {
+						servers[uint64(n.AppCenter)<<32|uint64(0)].info.AppID = m.GetRouterId()
+					}
+					mxServers.Unlock()
+				}
 			} else {
-				log.Warning("agent", "注册失败,RouterId=%v,原因=%v", m.GetRouterId(), m.GetReregToken())
+				log.Warning("agentServer", "注册失败,RouterId=%v,原因=%v", m.GetRouterId(), m.GetReregToken())
 			}
 			if AgentChanRPC != nil {
-				AgentChanRPC.Call0(RouterRegResult, m.GetRegResult(), m.GetRouterId())
+				AgentChanRPC.Call0(CenterRegResult, m.GetRegResult(), m.GetRouterId())
 			}
 		case uint16(center.CMDID_Center_IDAppState): //app状态改变
 			var m center.AppStateNotify
 			_ = proto.Unmarshal(msgData, &m)
-			log.Debug("agent", "app状态改变 AppState=%v,RouterId=%v,AppType=%v,AppId=%v",
+			log.Debug("agentServer", "app状态改变 AppState=%v,RouterId=%v,AppType=%v,AppId=%v",
 				m.GetAppState(), m.GetRouterId(), m.GetAppType(), m.GetAppId())
 		case uint16(center.CMDID_Center_IDPulseNotify): //心跳
 		default:
-			log.Error("agent", "n.CMDCenter,异常,还未处理消息,%v", bm.Cmd)
+			log.Error("agentServer", "n.CMDCenter,异常,还未处理消息,%v", bm.Cmd)
 		}
 	}
 }
 
 func (a *agentServer) OnClose() {
-	if a.s != nil {
-		if a.AppType == n.AppLogger {
-			log.SetCallback(nil)
-			log.Info("agent", "日志服务器断开")
-		} else if a.AppType == n.AppCenter {
-			log.Warning("agent", "异常,与router连接断开,世界需要重启... ...")
-			for _, cb := range cbRouterDisconnect {
-				cb()
-			}
+	log.Debug("", "服务间连接断开了,info=%v", a.info)
+	if a.info.AppType == n.AppLogger {
+		log.SetCallback(nil)
+		log.Info("agentServer", "日志服务器断开")
+	} else if a.info.AppType == n.AppCenter {
+		log.Warning("agentServer", "异常,与center连接断开,世界需要重启... ...")
+		for _, c := range cbCenterDisconnect {
+			c()
 		}
-		log.Debug("", "server 断开了，%v,%v", a.s.AppType, a.s.AppID)
-		delete(servers, uint64(uint64(a.s.AppType)<<32|uint64(a.s.AppID)))
-	} else {
-		log.Warning("", "有一个没有s的连接断开了")
 	}
-
+	if a.tcpClient != nil && !a.tcpClient.AutoReconnect {
+		a.tcpClient.Close()
+	}
+	mxServers.Lock()
+	delete(servers, uint64(a.info.AppType)<<32|uint64(a.info.AppID))
+	mxServers.Unlock()
 }
 
 func (a *agentServer) SendMessage(bm n.BaseMessage) {
@@ -174,17 +176,9 @@ func (a *agentServer) SendData(mainCmdID, subCmdID uint32, m proto.Message) {
 	}
 }
 
-func (a *agentServer) getTranData(destAppid, destAppType, dataKind, dataSubId, direction uint32) center.DataTransferReq {
-	var dataReq center.DataTransferReq
-	dataReq.SrcAppid = proto.Uint32(conf.AppID)
-	dataReq.SrcApptype = proto.Uint32(conf.AppType)
-	dataReq.DestAppid = proto.Uint32(destAppid)
-	dataReq.DestApptype = proto.Uint32(destAppType)
-	dataReq.DataCmdkind = proto.Uint32(dataKind)
-	dataReq.DataCmdsubid = proto.Uint32(dataSubId)
-	dataReq.DataDirection = proto.Uint32(direction)
-	return dataReq
+func (a *agentServer) Close() {
+	a.conn.Close()
 }
-
-func (a *agentServer) Close()   {}
-func (a *agentServer) Destroy() {}
+func (a *agentServer) Destroy() {
+	a.conn.Destroy()
+}

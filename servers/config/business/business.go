@@ -14,7 +14,6 @@ import (
 	"xlddz/core/module"
 	n "xlddz/core/network"
 	"xlddz/core/network/protobuf"
-	"xlddz/protocol/center"
 	"xlddz/protocol/config"
 	"xlddz/servers/config/agollo"
 	aConfig "xlddz/servers/config/agollo/env/config"
@@ -31,16 +30,14 @@ var (
 func init() {
 	//消息注册
 	chanRPC := skeleton.ChanRPCServer
-	processor.Register(&center.DataTransferReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDDataMessageReq), chanRPC)
 	processor.Register(&config.ApolloCfgReq{}, n.CMDConfig, uint16(config.CMDID_Config_IDApolloCfgReq), chanRPC)
 
-	chanRPC.Register(reflect.TypeOf(&center.DataTransferReq{}), handleDataTransferReq)
 	chanRPC.Register(reflect.TypeOf(&config.ApolloCfgReq{}), handleApolloCfgReq)
 
 	chanRPC.Register(g.ConnectSuccess, connectSuccess)
 	chanRPC.Register(g.Disconnect, disconnect)
-	chanRPC.Register(g.RouterConnected, routerConnected)
-	chanRPC.Register(g.RouterRegResult, routerRegResult)
+	chanRPC.Register(g.CenterConnected, routerConnected)
+	chanRPC.Register(g.CenterRegResult, routerRegResult)
 }
 
 type Gate struct {
@@ -403,13 +400,7 @@ func (d *DefaultLogger) Warn(v ...interface{}) {
 func (d *DefaultLogger) Error(v ...interface{}) {
 	log.Error("agollo", "%v", fmt.Sprint(v...))
 }
-func handleDataTransferReq(args []interface{}) {
-	//m := args[n.DATA_INDEX].(*center.DataTransferReq)
-	//a := args[n.AGENT_INDEX].(n.AgentClient)
 
-	log.Debug("", "收到了，有点意思了")
-
-}
 func handleApolloCfgReq(args []interface{}) {
 	b := args[n.DATA_INDEX].(n.BaseMessage)
 	m := (b.MyMessage).(*config.ApolloCfgReq)

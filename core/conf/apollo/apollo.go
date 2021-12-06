@@ -16,13 +16,13 @@ import (
 var (
 	configValues map[ConfKey]*ConfValue = make(map[ConfKey]*ConfValue)
 	regSubList   map[ConfKey]*ConfValue = make(map[ConfKey]*ConfValue)
-	routeAgent   network.AgentServer    = nil
-	apolloNotify []PublicCb
+	netAgent     network.AgentServer    = nil
+	apolloNotify []cbNotify
 	mutexConfig  sync.Mutex
 	mxRegSub     sync.Mutex
 )
 
-type PublicCb func(key ConfKey, value ConfValue)
+type cbNotify func(key ConfKey, value ConfValue)
 
 type ConfKey struct {
 	AppType uint32
@@ -33,7 +33,7 @@ type ConfKey struct {
 type ConfValue struct {
 	Value    string
 	RspCount uint64
-	Cb       PublicCb
+	Cb       cbNotify
 }
 
 func init() {
@@ -41,8 +41,8 @@ func init() {
 }
 
 //设置代理
-func SetRouterAgent(a network.AgentServer) {
-	routeAgent = a
+func SetNetAgent(a network.AgentServer) {
+	netAgent = a
 
 	//连接成功后开启定时订阅
 	timeInterval := 30 * time.Second
@@ -62,14 +62,12 @@ func SetRouterAgent(a network.AgentServer) {
 }
 
 //router断开
-func RouterDisconnect() {
-	//允许重新注册,原配置保留
+func CenterDisconnect() {
 	regSubList = make(map[ConfKey]*ConfValue)
 }
 
 //消息处理
 func ProcessReq(cmd *network.TCPCommand, data []byte) error {
-	//消息处理
 	switch cmd.SubCmdID {
 	case uint16(config.CMDID_Config_IDApolloCfgRsp): //配置响应
 		var m config.ApolloCfgRsp
@@ -136,7 +134,7 @@ func GetConfigAsInt64(key string, defaultValue int64) int64 {
 	return v
 }
 
-func RegisterConfig(key string, reqAppType, reqAppId uint32, cb PublicCb) {
+func RegisterConfig(key string, reqAppType, reqAppId uint32, cb cbNotify) {
 	mxRegSub.Lock()
 	nsKey := ConfKey{Key: key, AppType: reqAppType, AppId: reqAppId}
 	if _, ok := regSubList[nsKey]; ok {
@@ -154,7 +152,7 @@ func RegisterConfig(key string, reqAppType, reqAppId uint32, cb PublicCb) {
 
 //发送订阅
 func SendSubscribeReq(k ConfKey, cancel bool) {
-	if routeAgent == nil {
+	if netAgent == nil {
 		return
 	}
 	//没注册过的走你
@@ -181,11 +179,11 @@ func SendSubscribeReq(k ConfKey, cancel bool) {
 
 	cmd := network.TCPCommand{MainCmdID: uint16(network.AppConfig), SubCmdID: uint16(config.CMDID_Config_IDApolloCfgReq)}
 	bm := network.BaseMessage{MyMessage: &req, Cmd: cmd}
-	routeAgent.SendMessage(bm)
+	netAgent.SendMessage(bm)
 }
 
 //注册回调
-func RegPublicCB(cb PublicCb) {
+func RegPublicCB(cb cbNotify) {
 	if cb == nil {
 		return
 	}

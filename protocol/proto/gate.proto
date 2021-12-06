@@ -38,10 +38,8 @@ message TransferDataReq{
 	optional uint32 req_id =6;
 	optional uint32 client_ip_v4=7;		//客户端的ip
 	optional uint64 att_sessionid=8; 	//联联的session id ，目前只由gate->client
-	optional uint32 data_direction=9;	//转发类型
-	optional uint64 att_userid=10;       //关联的用户ID
-	optional uint64 att_gateconnid=11; 	//关联的gate连接id
-	optional uint32 att_gateid = 12;		//关联的gate_id
+	optional uint64 gateconnid=9; 		//关联的gate连接id
+	optional uint32 gateid = 10;		//关联的gate_id
 };
 
 //数据转发请求
