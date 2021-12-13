@@ -1,7 +1,7 @@
 {
-    "AppName": "AppLogin",
+    "AppName": "login",
     "AppType": 7,
     "AppID": 30,
     "TCPClientAddr": "127.0.0.1:10001",
-    "TCPAddr": "127.0.0.1:10010"
+    "TCPAddr": "0.0.0.0:10010"
 }

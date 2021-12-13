@@ -50,52 +50,26 @@ func ApolloNotify(k apollo.ConfKey, v apollo.ConfValue) {
 	//得到日志服务
 	if conf.AppType != n.AppLogger && k.Key == "日志服务器地址" && v.Value != "" &&
 		v.RspCount == 1 && tcpLog != nil && !tcpLog.IsRunning() {
-		LogAddr := v.Value
-		dockerRun := false
+		logAddr := v.Value
 		if v, ok := util.ParseArgs("/DockerRun"); ok && v == 1 {
-			dockerRun = true
-		}
-		if dockerRun {
-			LogAddr = ""
-			addr := strings.Split(v.Value, "|")
+			addr := strings.Split(logAddr, "|")
+			logAddr = ""
 			for i, v := range addr {
 				curConnAddr := v
 				curAddr := strings.Split(curConnAddr, ":")
 				if len(curAddr) == 2 {
-					LogAddr = LogAddr + "logger:" + curAddr[1]
+					logAddr = logAddr + "logger:" + curAddr[1]
 				}
 				if i != len(addr)-1 {
-					LogAddr = LogAddr + "|"
+					logAddr = logAddr + "|"
 				}
 			}
-
-			//if len(addr) == 1 {
-			//	curConnAddr := addr[0]
-			//	curAddr := strings.Split(curConnAddr, ":")
-			//	if len(curAddr) == 2 {
-			//		LogAddr = "logger:" + curAddr[1]
-			//	}
-			//} else {
-			//	for i, v := range addr {
-			//		curConnAddr := v
-			//		curAddr := strings.Split(curConnAddr, ":")
-			//		if len(curAddr) == 2 {
-			//			LogAddr = LogAddr + "logger:" + curAddr[1]
-			//		}
-			//		if i != len(addr)-1 {
-			//			LogAddr = LogAddr + "|"
-			//		}
-			//	}
-			//}
 		}
-
-		log.Debug("", "日志,%v,dockerRun=%v", LogAddr, dockerRun)
-
-		tcpLog.Addr = LogAddr
+		tcpLog.Addr = logAddr
 		tcpLog.AutoReconnect = true
 		tcpLog.NewAgent = func(conn *n.TCPConn) n.AgentServer {
-			a := &agentServer{tcpClient: tcpLog, conn: conn, info: n.BaseAgentInfo{AgentType: n.CommonServer, AppName: "logger", AppType: n.AppLogger, AppID: 0, ListenOnAddress: LogAddr}}
-			log.Info("gate", "日志服务器连接成功,Addr=%v", LogAddr)
+			a := &agentServer{tcpClient: tcpLog, conn: conn, info: n.BaseAgentInfo{AgentType: n.CommonServer, AppName: "logger", AppType: n.AppLogger, AppID: 0, ListenOnAddress: logAddr}}
+			log.Info("gate", "日志服务器连接成功,Addr=%v", logAddr)
 			log.Info("gate", "服务启动完成,阔以开始了... ...")
 
 			log.SetCallback(func(i log.LogInfo) {

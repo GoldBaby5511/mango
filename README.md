@@ -27,6 +27,36 @@
 
 ---
 
+## Docker部署
+
+* 本机部署好Docker环境，命令行下依次执行一下命令，生成镜像
+
+```bash
+docker build --target center --file ./servers/center/Dockerfile --tag xlddz/center .
+docker build --target config --file ./servers/config/Dockerfile --tag xlddz/config .
+docker build --target gateway --file ./servers/gateway/Dockerfile --tag xlddz/gateway .
+docker build --target logger --file ./servers/logger/Dockerfile --tag xlddz/logger .
+docker build --target login --file ./servers/login/Dockerfile --tag xlddz/login .
+```
+
+* 创建网桥
+
+```bash
+docker network create xlddz
+```
+
+* 执行以下命令，运行本地容器
+
+```bash
+docker run -d --name="logger" --network xlddz xlddz/logger
+docker run -d --name="center" --network xlddz xlddz/center
+docker run -d --name="config" --network xlddz xlddz/config
+docker run -d --name="login" --network xlddz xlddz/login
+docker run -d -p 10102:10102 --name="gateway" --network xlddz xlddz/gateway
+```
+
+---
+
 ## 服务热切换
 
 以login服务为例，服务在router内的注册是以 appType+appId 为唯一标识，所以若要升级login只需要新开一个实例，使用 appType+新appId，然后修改配置文件(common-server-router.json)或 apollo内“服务维护”字段，写入原login的appType+appId，配置中心会实时将配置通知router，之后的登录消息将会被路由到新login。
