@@ -13,4 +13,5 @@ var (
 	AppID           uint32
 	AppType         uint32
 	ListenOnAddress string
+	CenterAddr      string
 )

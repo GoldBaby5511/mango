@@ -49,7 +49,7 @@ func (m *Gate) OnInit() {
 	g.Processor = processor
 	m.Gate = &g.Gate{
 		TCPAddr:       conf.Server.TCPAddr,
-		TCPClientAddr: conf.Server.TCPClientAddr,
+		TCPClientAddr: lconf.CenterAddr,
 	}
 }
 

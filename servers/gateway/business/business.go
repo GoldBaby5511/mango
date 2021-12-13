@@ -5,6 +5,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"reflect"
 	"time"
+	lconf "xlddz/core/conf"
 	"xlddz/core/conf/apollo"
 	g "xlddz/core/gate"
 	"xlddz/core/log"
@@ -57,7 +58,7 @@ func (m *Gate) OnInit() {
 	g.Processor = processor
 	m.Gate = &g.Gate{
 		TCPAddr:       conf.Server.TCPAddr,
-		TCPClientAddr: conf.Server.TCPClientAddr,
+		TCPClientAddr: lconf.CenterAddr,
 		MaxConnNum:    20000,
 	}
 

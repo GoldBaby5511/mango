@@ -2,6 +2,7 @@ package gate
 
 import (
 	"google.golang.org/protobuf/proto"
+	"strings"
 	"sync"
 	"time"
 	"xlddz/core/chanrpc"
@@ -9,6 +10,7 @@ import (
 	"xlddz/core/conf/apollo"
 	"xlddz/core/log"
 	n "xlddz/core/network"
+	"xlddz/core/util"
 	"xlddz/protocol/center"
 	"xlddz/protocol/gate"
 	"xlddz/protocol/logger"
@@ -49,6 +51,46 @@ func ApolloNotify(k apollo.ConfKey, v apollo.ConfValue) {
 	if conf.AppType != n.AppLogger && k.Key == "日志服务器地址" && v.Value != "" &&
 		v.RspCount == 1 && tcpLog != nil && !tcpLog.IsRunning() {
 		LogAddr := v.Value
+		dockerRun := false
+		if v, ok := util.ParseArgs("/DockerRun"); ok && v == 1 {
+			dockerRun = true
+		}
+		if dockerRun {
+			LogAddr = ""
+			addr := strings.Split(v.Value, "|")
+			for i, v := range addr {
+				curConnAddr := v
+				curAddr := strings.Split(curConnAddr, ":")
+				if len(curAddr) == 2 {
+					LogAddr = LogAddr + "logger:" + curAddr[1]
+				}
+				if i != len(addr)-1 {
+					LogAddr = LogAddr + "|"
+				}
+			}
+
+			//if len(addr) == 1 {
+			//	curConnAddr := addr[0]
+			//	curAddr := strings.Split(curConnAddr, ":")
+			//	if len(curAddr) == 2 {
+			//		LogAddr = "logger:" + curAddr[1]
+			//	}
+			//} else {
+			//	for i, v := range addr {
+			//		curConnAddr := v
+			//		curAddr := strings.Split(curConnAddr, ":")
+			//		if len(curAddr) == 2 {
+			//			LogAddr = LogAddr + "logger:" + curAddr[1]
+			//		}
+			//		if i != len(addr)-1 {
+			//			LogAddr = LogAddr + "|"
+			//		}
+			//	}
+			//}
+		}
+
+		log.Debug("", "日志,%v,dockerRun=%v", LogAddr, dockerRun)
+
 		tcpLog.Addr = LogAddr
 		tcpLog.AutoReconnect = true
 		tcpLog.NewAgent = func(conn *n.TCPConn) n.AgentServer {
@@ -173,7 +215,14 @@ func sendRegAppReq(a *agentServer) {
 	registerReq.AppName = proto.String(conf.AppName)
 	registerReq.AppType = proto.Uint32(conf.AppType)
 	registerReq.AppId = proto.Uint32(conf.AppID)
-	registerReq.MyAddress = proto.String(conf.ListenOnAddress)
+	myAddress := conf.ListenOnAddress
+	if v, ok := util.ParseArgs("/DockerRun"); ok && v == 1 {
+		addr := strings.Split(conf.ListenOnAddress, ":")
+		if len(addr) == 2 {
+			myAddress = conf.AppName + ":" + addr[1]
+		}
+	}
+	registerReq.MyAddress = proto.String(myAddress)
 	a.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDAppRegReq), &registerReq)
 }
 

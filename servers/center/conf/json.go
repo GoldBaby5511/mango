@@ -27,5 +27,6 @@ func init() {
 	lconf.AppName = Server.AppName
 	lconf.AppType = n.AppCenter
 	lconf.AppID = Server.AppID
+	lconf.ListenOnAddress = Server.TCPAddr
 	log.Info("jsonconf", "配置文件载入成功%v", Server)
 }

@@ -37,10 +37,10 @@ func newServerItem(info n.BaseAgentInfo, autoReconnect bool, pendingWriteNum int
 		go func(t *time.Timer) {
 			for {
 				<-t.C
-				var appPulseNotify center.AppPulseNotify
-				appPulseNotify.Action = (*center.AppPulseNotify_PulseAction)(proto.Int32(int32(center.AppPulseNotify_HeartBeatReq)))
-				appPulseNotify.PulseData = proto.Uint64(uint64(time.Now().Unix()))
-				a.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDPulseNotify), &appPulseNotify)
+				var pulse center.AppPulseNotify
+				pulse.Action = (*center.AppPulseNotify_PulseAction)(proto.Int32(int32(center.AppPulseNotify_HeartBeatReq)))
+				pulse.PulseData = proto.Uint64(uint64(time.Now().Unix()))
+				a.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDPulseNotify), &pulse)
 
 				t.Reset(timeInterval)
 			}

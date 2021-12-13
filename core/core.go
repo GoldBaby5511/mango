@@ -3,12 +3,13 @@ package core
 import (
 	"os"
 	"os/signal"
-	"strconv"
+	"strings"
 	"xlddz/core/conf"
 	"xlddz/core/conf/apollo"
 	"xlddz/core/log"
 	"xlddz/core/module"
 	"xlddz/core/network"
+	"xlddz/core/util"
 )
 
 func Run(mods ...module.Module) {
@@ -20,24 +21,19 @@ func Run(mods ...module.Module) {
 	log.Export(logger)
 	defer logger.Close()
 
-	//解析参数
-	parseArgs := func(argType string) (uint32, bool) {
-		args := os.Args
-		for i := 0; i < len(args); i++ {
-			if args[i] == argType && i+1 < len(args) {
-				appID, err := strconv.Atoi(args[i+1])
-				if err == nil {
-					return uint32(appID), true
-				}
-			}
-		}
-		return 0, false
-	}
-	if v, ok := parseArgs("/AppID"); ok {
+	if v, ok := util.ParseArgs("/AppID"); ok {
 		conf.AppID = v
 	}
-	if v, ok := parseArgs("/AppType"); ok {
+	if v, ok := util.ParseArgs("/AppType"); ok {
 		conf.AppType = v
+	}
+	if v, ok := util.ParseArgs("/DockerRun"); ok {
+		if v == 1 && conf.AppType != network.AppCenter {
+			addr := strings.Split(conf.CenterAddr, ":")
+			if len(addr) == 2 {
+				conf.CenterAddr = "center:" + addr[1]
+			}
+		}
 	}
 	if conf.AppType == network.AppCenter {
 		apollo.RegisterConfig("", conf.AppType, conf.AppID, nil)

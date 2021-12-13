@@ -3,6 +3,7 @@ package business
 import (
 	"google.golang.org/protobuf/proto"
 	"reflect"
+	lconf "xlddz/core/conf"
 	g "xlddz/core/gate"
 	"xlddz/core/log"
 	"xlddz/core/module"
@@ -42,7 +43,7 @@ func (m *Gate) OnInit() {
 	g.Processor = processor
 	m.Gate = &g.Gate{
 		TCPAddr:       conf.Server.TCPAddr,
-		TCPClientAddr: conf.Server.TCPClientAddr,
+		TCPClientAddr: lconf.CenterAddr,
 	}
 }
 
