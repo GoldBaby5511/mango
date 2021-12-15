@@ -30,7 +30,7 @@ func newServerItem(info n.BaseAgentInfo, autoReconnect bool, pendingWriteNum int
 	tcpClient.AutoReconnect = autoReconnect
 	tcpClient.NewAgent = func(conn *n.TCPConn) n.AgentServer {
 		a := &agentServer{tcpClient: tcpClient, conn: conn, info: info}
-		log.Debug("agentServer", "连接成功,%v", a.info)
+		log.Debug("agentServer", "连接成功,%v,autoReconnect=%v", a.info, autoReconnect)
 		sendRegAppReq(a)
 		timeInterval := 30 * time.Second
 		timerHeartbeat := time.NewTimer(timeInterval)
@@ -57,7 +57,7 @@ func newServerItem(info n.BaseAgentInfo, autoReconnect bool, pendingWriteNum int
 		return a
 	}
 
-	log.Debug("agentServer", "开始连接,%v", info)
+	log.Debug("agentServer", "开始连接,%v,autoReconnect=%v", info, autoReconnect)
 
 	if tcpClient != nil {
 		tcpClient.Start()
@@ -84,7 +84,7 @@ func (a *agentServer) Run() {
 
 			if m.GetRegResult() == 0 {
 				log.Info("agentServer", "注册成功,regToken=%v,RouterId=%v,%v,%v,%v,%v",
-					m.GetReregToken(), m.GetRouterId(), m.GetAppName(), m.GetAppType(), m.GetAppId(), m.GetAppAddress())
+					m.GetReregToken(), m.GetCenterId(), m.GetAppName(), m.GetAppType(), m.GetAppId(), m.GetAppAddress())
 
 				//获取配置
 				mxServers.Lock()
@@ -93,7 +93,6 @@ func (a *agentServer) Run() {
 				if !(conf.AppType == m.GetAppType() && conf.AppID == m.GetAppId()) && !ok {
 					if m.GetAppAddress() != "" {
 						info := n.BaseAgentInfo{AgentType: n.CommonServer, AppName: m.GetAppName(), AppType: m.GetAppType(), AppID: m.GetAppId(), ListenOnAddress: m.GetAppAddress()}
-						log.Debug("agentServer", "开始互联,%v", info)
 						newServerItem(info, false, 0)
 					} else {
 						log.Warning("agentServer", "没有地址?,%v,%v,%v,%v",
@@ -104,22 +103,29 @@ func (a *agentServer) Run() {
 				if conf.AppType == n.AppConfig {
 					mxServers.Lock()
 					if _, ok := servers[uint64(n.AppCenter)<<32|uint64(0)]; ok {
-						servers[uint64(n.AppCenter)<<32|uint64(0)].info.AppID = m.GetRouterId()
+						servers[uint64(n.AppCenter)<<32|uint64(0)].info.AppID = m.GetCenterId()
 					}
 					mxServers.Unlock()
 				}
 			} else {
-				log.Warning("agentServer", "注册失败,RouterId=%v,原因=%v", m.GetRouterId(), m.GetReregToken())
+				log.Warning("agentServer", "注册失败,RouterId=%v,原因=%v", m.GetCenterId(), m.GetReregToken())
 			}
 			if AgentChanRPC != nil {
-				AgentChanRPC.Call0(CenterRegResult, m.GetRegResult(), m.GetRouterId())
+				AgentChanRPC.Call0(CenterRegResult, m.GetRegResult(), m.GetCenterId())
 			}
 		case uint16(center.CMDID_Center_IDAppState): //app状态改变
 			var m center.AppStateNotify
 			_ = proto.Unmarshal(msgData, &m)
 			log.Debug("agentServer", "app状态改变 AppState=%v,RouterId=%v,AppType=%v,AppId=%v",
-				m.GetAppState(), m.GetRouterId(), m.GetAppType(), m.GetAppId())
-		case uint16(center.CMDID_Center_IDPulseNotify): //心跳
+				m.GetAppState(), m.GetCenterId(), m.GetAppType(), m.GetAppId())
+
+			mxServers.Lock()
+			if _, ok := servers[uint64(m.GetAppType())<<32|uint64(m.GetAppId())]; ok {
+				servers[uint64(m.GetAppType())<<32|uint64(m.GetAppId())].Close()
+			}
+			mxServers.Unlock()
+
+		case uint16(center.CMDID_Center_IDPulseNotify):
 		default:
 			log.Error("agentServer", "n.CMDCenter,异常,还未处理消息,%v", bm.Cmd)
 		}

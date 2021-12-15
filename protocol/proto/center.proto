@@ -32,7 +32,7 @@ message	RegisterAppReq {
 message RegisterAppRsp {
 	required uint32	reg_result = 1; 	//0表示成功，其它为错误码(rereg_token为出错内容)
 	optional string	rereg_token = 2; 	//如果中间网络断开了,可以使用rereg_token强行再次注册
-	optional uint32	router_id = 3;
+	optional uint32	center_id = 3;
 	optional uint32 app_type=4;   		//Router 或其他
 	optional uint32 app_id =5;
 	optional string app_name = 6; 		//app的名称(一般为进程名)
@@ -47,7 +47,7 @@ message AppStateNotify{
 		OffLine=3;
 	} 
 	required uint32 app_state=1;
-	optional uint32 router_id=2;     //所连的router id
+	optional uint32 center_id=2;     
 	optional uint32 app_type=4;
 	optional uint32 app_id =5;
 }

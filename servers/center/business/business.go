@@ -108,6 +108,7 @@ func disconnect(args []interface{}) {
 	if v, ok := appConnData[a]; ok {
 		regKey := makeRegKey(v.regInfo.appType, v.regInfo.appId)
 		log.Info("连接", "再见,appType=%d,appId=%d,regKey=%d", v.regInfo.appType, v.regInfo.appId, regKey)
+		broadcastAppState(v.regInfo.appType, v.regInfo.appId)
 		delete(appConnData, a)
 		delete(appRegData, regKey)
 	} else {
@@ -169,7 +170,7 @@ func handleRegisterAppReq(args []interface{}) {
 			var rsp center.RegisterAppRsp
 			rsp.RegResult = proto.Uint32(1)
 			rsp.ReregToken = proto.String(resultMsg)
-			rsp.RouterId = proto.Uint32(conf.Server.AppID)
+			rsp.CenterId = proto.Uint32(conf.Server.AppID)
 			a.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDAppRegRsp), &rsp)
 
 			a.Close()
@@ -191,7 +192,7 @@ func handleRegisterAppReq(args []interface{}) {
 	var rsp center.RegisterAppRsp
 	rsp.RegResult = proto.Uint32(0)
 	rsp.ReregToken = proto.String(token)
-	rsp.RouterId = proto.Uint32(conf.Server.AppID)
+	rsp.CenterId = proto.Uint32(conf.Server.AppID)
 	rsp.AppName = proto.String(m.GetAppName())
 	rsp.AppType = proto.Uint32(m.GetAppType())
 	rsp.AppId = proto.Uint32(m.GetAppId())
@@ -208,7 +209,7 @@ func handleRegisterAppReq(args []interface{}) {
 		var rsp center.RegisterAppRsp
 		rsp.RegResult = proto.Uint32(0)
 		rsp.ReregToken = proto.String(v.regInfo.regToken)
-		rsp.RouterId = proto.Uint32(conf.Server.AppID)
+		rsp.CenterId = proto.Uint32(conf.Server.AppID)
 		rsp.AppName = proto.String(v.regInfo.appName)
 		rsp.AppType = proto.Uint32(v.regInfo.appType)
 		rsp.AppId = proto.Uint32(v.regInfo.appId)
@@ -253,4 +254,18 @@ func handleAppUpdateReq(args []interface{}) {
 
 func makeRegKey(appType, appId uint32) uint64 {
 	return uint64(appType)<<32 | uint64(appId)
+}
+
+func broadcastAppState(appType, appId uint32) {
+	for a, v := range appConnData {
+		if v.regInfo.appType == appType && v.regInfo.appId == appId {
+			continue
+		}
+		var rsp center.AppStateNotify
+		rsp.AppState = proto.Uint32(uint32(center.AppStateNotify_OffLine))
+		rsp.CenterId = proto.Uint32(conf.Server.AppID)
+		rsp.AppType = proto.Uint32(appType)
+		rsp.AppId = proto.Uint32(appId)
+		a.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDAppState), &rsp)
+	}
 }
