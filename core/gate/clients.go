@@ -1,7 +1,7 @@
 package gate
 
 import (
-	"google.golang.org/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"net"
 	"reflect"
 	"xlddz/core/conf"
@@ -17,7 +17,6 @@ import (
 type agentClient struct {
 	id   uint64
 	conn n.Conn
-	gate *Gate
 	info n.BaseAgentInfo
 }
 

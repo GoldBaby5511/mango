@@ -1,7 +1,8 @@
 package gate
 
 import (
-	"google.golang.org/protobuf/proto"
+	"github.com/golang/protobuf/proto"
+	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -9,7 +10,9 @@ import (
 	"xlddz/core/conf"
 	"xlddz/core/conf/apollo"
 	"xlddz/core/log"
+	"xlddz/core/module"
 	n "xlddz/core/network"
+	"xlddz/core/network/protobuf"
 	"xlddz/core/util"
 	"xlddz/protocol/center"
 	"xlddz/protocol/gate"
@@ -35,7 +38,22 @@ var (
 	mxServers          sync.Mutex
 	servers            map[uint64]*agentServer = make(map[uint64]*agentServer)
 	AgentChanRPC       *chanrpc.Server
-	Processor          n.Processor
+	Skeleton           = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
+	Processor          = protobuf.NewProcessor()
+	MaxConnNum         int
+	PendingWriteNum    int
+	MaxMsgLen          uint32
+
+	// websocket
+	WSAddr      string
+	HTTPTimeout time.Duration
+	CertFile    string
+	KeyFile     string
+
+	// tcp
+	LenMsgLen    int
+	LittleEndian bool
+	closeSig     chan bool
 )
 
 func init() {
@@ -44,6 +62,98 @@ func init() {
 	}
 	cbCenterDisconnect = append(cbCenterDisconnect, apollo.CenterDisconnect)
 	apollo.RegPublicCB(ApolloNotify)
+	AgentChanRPC = Skeleton.ChanRPCServer
+	closeSig = make(chan bool, 1)
+}
+
+func Start() {
+	go func() {
+		Skeleton.Run()
+	}()
+
+	go func() {
+		Run()
+	}()
+}
+
+func Stop() {
+	Skeleton.Close()
+	closeSig <- true
+}
+
+func MsgRegister(m proto.Message, mainCmdId uint32, subCmdId uint16, f interface{}) {
+	chanRPC := Skeleton.ChanRPCServer
+	Processor.Register(m, mainCmdId, subCmdId, chanRPC)
+	chanRPC.Register(reflect.TypeOf(m), f)
+}
+
+func EventRegister(id interface{}, f interface{}) {
+	Skeleton.ChanRPCServer.Register(id, f)
+}
+
+func Run() {
+
+	log.Debug("", "Run,TCPAddr=%v", conf.ListenOnAddress)
+
+	var wsServer *n.WSServer
+	if WSAddr != "" {
+		wsServer = new(n.WSServer)
+		wsServer.Addr = WSAddr
+		wsServer.MaxConnNum = MaxConnNum
+		wsServer.PendingWriteNum = PendingWriteNum
+		wsServer.MaxMsgLen = MaxMsgLen
+		wsServer.HTTPTimeout = HTTPTimeout
+		wsServer.CertFile = CertFile
+		wsServer.KeyFile = KeyFile
+		wsServer.NewAgent = func(conn *n.WSConn) n.AgentClient {
+			a := &agentClient{conn: conn}
+			if AgentChanRPC != nil {
+				AgentChanRPC.Go(ConnectSuccess, a)
+			}
+			return a
+		}
+	}
+
+	var tcpServer *n.TCPServer
+	if conf.ListenOnAddress != "" {
+		tcpServer = new(n.TCPServer)
+		tcpServer.Addr = conf.ListenOnAddress
+		tcpServer.MaxConnNum = MaxConnNum
+		tcpServer.PendingWriteNum = PendingWriteNum
+		tcpServer.LenMsgLen = LenMsgLen
+		tcpServer.MaxMsgLen = MaxMsgLen
+		tcpServer.LittleEndian = LittleEndian
+		tcpServer.GetConfig = apollo.GetConfigAsInt64
+		tcpServer.NewAgent = func(conn *n.TCPConn, agentId uint64) n.AgentClient {
+			a := &agentClient{id: agentId, conn: conn, info: n.BaseAgentInfo{AgentType: n.NormalUser}}
+			if AgentChanRPC != nil {
+				AgentChanRPC.Go(ConnectSuccess, a, agentId)
+			}
+			return a
+		}
+	}
+
+	if conf.CenterAddr != "" && conf.AppType != n.AppCenter {
+		newServerItem(n.BaseAgentInfo{AgentType: n.CommonServer, AppName: "center", AppType: n.AppCenter, ListenOnAddress: conf.CenterAddr}, true, PendingWriteNum)
+	}
+
+	if wsServer != nil {
+		wsServer.Start()
+	}
+	if tcpServer != nil {
+		tcpServer.Start()
+	}
+
+	<-closeSig
+	if wsServer != nil {
+		wsServer.Close()
+	}
+	if tcpServer != nil {
+		tcpServer.Close()
+	}
+	if tcpLog != nil {
+		tcpLog.Close()
+	}
 }
 
 func ApolloNotify(k apollo.ConfKey, v apollo.ConfValue) {
@@ -94,94 +204,6 @@ func ApolloNotify(k apollo.ConfKey, v apollo.ConfValue) {
 		tcpLog.Start()
 	}
 }
-
-//Gate 服务端网关
-type Gate struct {
-	MaxConnNum      int
-	PendingWriteNum int
-	MaxMsgLen       uint32
-
-	// websocket
-	WSAddr      string
-	HTTPTimeout time.Duration
-	CertFile    string
-	KeyFile     string
-
-	// tcp
-	TCPAddr      string
-	LenMsgLen    int
-	LittleEndian bool
-
-	TCPClientAddr string
-}
-
-//Run module实现
-func (gate *Gate) Run(closeSig chan bool) {
-
-	var wsServer *n.WSServer
-	if gate.WSAddr != "" {
-		wsServer = new(n.WSServer)
-		wsServer.Addr = gate.WSAddr
-		wsServer.MaxConnNum = gate.MaxConnNum
-		wsServer.PendingWriteNum = gate.PendingWriteNum
-		wsServer.MaxMsgLen = gate.MaxMsgLen
-		wsServer.HTTPTimeout = gate.HTTPTimeout
-		wsServer.CertFile = gate.CertFile
-		wsServer.KeyFile = gate.KeyFile
-		wsServer.NewAgent = func(conn *n.WSConn) n.AgentClient {
-			a := &agentClient{conn: conn, gate: gate}
-			if AgentChanRPC != nil {
-				AgentChanRPC.Go(ConnectSuccess, a)
-			}
-			return a
-		}
-	}
-
-	var tcpServer *n.TCPServer
-	if gate.TCPAddr != "" {
-		tcpServer = new(n.TCPServer)
-		tcpServer.Addr = gate.TCPAddr
-		tcpServer.MaxConnNum = gate.MaxConnNum
-		tcpServer.PendingWriteNum = gate.PendingWriteNum
-		tcpServer.LenMsgLen = gate.LenMsgLen
-		tcpServer.MaxMsgLen = gate.MaxMsgLen
-		tcpServer.LittleEndian = gate.LittleEndian
-		tcpServer.GetConfig = apollo.GetConfigAsInt64
-		tcpServer.NewAgent = func(conn *n.TCPConn, agentId uint64) n.AgentClient {
-			a := &agentClient{id: agentId, conn: conn, gate: gate, info: n.BaseAgentInfo{AgentType: n.NormalUser}}
-			if AgentChanRPC != nil {
-				AgentChanRPC.Go(ConnectSuccess, a, agentId)
-			}
-			return a
-		}
-	}
-
-	if gate.TCPClientAddr != "" {
-		newServerItem(n.BaseAgentInfo{AgentType: n.CommonServer, AppName: "center", AppType: n.AppCenter, ListenOnAddress: gate.TCPClientAddr}, true, gate.PendingWriteNum)
-	}
-
-	if wsServer != nil {
-		wsServer.Start()
-	}
-	if tcpServer != nil {
-		tcpServer.Start()
-	}
-
-	<-closeSig
-
-	if wsServer != nil {
-		wsServer.Close()
-	}
-	if tcpServer != nil {
-		tcpServer.Close()
-	}
-	if tcpLog != nil {
-		tcpLog.Close()
-	}
-}
-
-//OnDestroy module实现
-func (gate *Gate) OnDestroy() {}
 
 func sendRegAppReq(a *agentServer) {
 	var registerReq center.RegisterAppReq

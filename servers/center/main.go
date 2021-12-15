@@ -2,12 +2,10 @@ package main
 
 import (
 	"xlddz/core"
-	"xlddz/servers/center/business"
+	_ "xlddz/servers/center/business"
+	_ "xlddz/servers/center/conf"
 )
 
 func main() {
-	core.Run(
-		new(business.Gate),
-		new(business.Module),
-	)
+	core.Start()
 }

@@ -2,11 +2,11 @@ package main
 
 import (
 	"net/http"
-	_ "net/http/pprof"
 	"os"
 	"xlddz/core"
 	"xlddz/core/log"
-	"xlddz/servers/gateway/business"
+	_ "xlddz/servers/gateway/business"
+	_ "xlddz/servers/gateway/conf"
 )
 
 func main() {
@@ -18,8 +18,6 @@ func main() {
 		os.Exit(0)
 	}()
 
-	core.Run(
-		new(business.Module),
-		new(business.Gate),
-	)
+	core.Start()
+
 }

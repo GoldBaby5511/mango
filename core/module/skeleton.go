@@ -19,6 +19,7 @@ type Skeleton struct {
 	client             *chanrpc.Client
 	server             *chanrpc.Server
 	commandServer      *chanrpc.Server
+	closeSig           chan bool
 }
 
 func NewSkeleton(GoLen, TimerDispatcherLen, AsynCallLen, ChanRPCLen int) *Skeleton {
@@ -52,12 +53,13 @@ func (s *Skeleton) Init() {
 		s.server = chanrpc.NewServer(0)
 	}
 	s.commandServer = chanrpc.NewServer(0)
+	s.closeSig = make(chan bool, 1)
 }
 
-func (s *Skeleton) Run(closeSig chan bool) {
+func (s *Skeleton) Run() {
 	for {
 		select {
-		case <-closeSig:
+		case <-s.closeSig:
 			s.commandServer.Close()
 			s.server.Close()
 			for !s.g.Idle() || !s.client.Idle() {
@@ -77,6 +79,10 @@ func (s *Skeleton) Run(closeSig chan bool) {
 			t.Cb()
 		}
 	}
+}
+
+func (s *Skeleton) Close() {
+	s.closeSig <- true
 }
 
 func (s *Skeleton) AfterFunc(d time.Duration, cb func()) *timer.Timer {

@@ -6,13 +6,13 @@ import (
 	"strings"
 	"xlddz/core/conf"
 	"xlddz/core/conf/apollo"
+	"xlddz/core/gate"
 	"xlddz/core/log"
-	"xlddz/core/module"
 	"xlddz/core/network"
 	"xlddz/core/util"
 )
 
-func Run(mods ...module.Module) {
+func Start() {
 	// logger
 	logger, err := log.New(conf.AppName)
 	if err != nil {
@@ -39,16 +39,12 @@ func Run(mods ...module.Module) {
 		apollo.RegisterConfig("", conf.AppType, conf.AppID, nil)
 	}
 
-	for i := 0; i < len(mods); i++ {
-		module.Register(mods[i])
-	}
-
-	module.Init()
+	gate.Start()
 
 	// close
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, os.Kill)
 	sig := <-c
 	log.Info("主流程", "服务器关闭 (signal: %v)", sig)
-	module.Destroy()
+	gate.Stop()
 }

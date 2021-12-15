@@ -105,14 +105,20 @@ func (client *TCPClient) dial() net.Conn {
 			return conn
 		}
 
-		log.Info("TCPClient", "connect to %v error: %v,index=%v", curConnAddr, err, index)
+		log.Warning("TCPClient", "error: %v,index=%v", err, index)
 		index++
 		if index >= len(addr) {
-			index = 0
+			if client.AutoReconnect {
+				index = 0
+			} else {
+				break
+			}
 		}
 		time.Sleep(client.ConnectInterval)
 		continue
 	}
+
+	return nil
 }
 
 func (client *TCPClient) Close() {

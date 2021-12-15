@@ -1,7 +1,7 @@
 package network
 
 import (
-	"google.golang.org/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"net"
 )
 

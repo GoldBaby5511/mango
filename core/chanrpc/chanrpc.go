@@ -148,8 +148,6 @@ func (s *Server) Go(id interface{}, args ...interface{}) {
 		recover()
 	}()
 
-	//log.Debug("chanrpc", "chanrpc.go goroutine safe Go id=%v,f=%v", id, f)
-
 	s.ChanCall <- &CallInfo{
 		f:    f,
 		args: args,

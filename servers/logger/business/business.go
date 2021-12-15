@@ -5,22 +5,16 @@ import (
 	"math/rand"
 	"os"
 	"path"
-	"reflect"
 	"time"
 	g "xlddz/core/gate"
 	"xlddz/core/log"
-	"xlddz/core/module"
 	n "xlddz/core/network"
-	"xlddz/core/network/protobuf"
 	"xlddz/core/util"
 	"xlddz/protocol/logger"
-	"xlddz/servers/logger/conf"
 )
 
 var (
-	skeleton                                      = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
 	appConnData map[n.AgentClient]*connectionData = make(map[n.AgentClient]*connectionData)
-	processor                                     = protobuf.NewProcessor()
 )
 
 const (
@@ -46,40 +40,11 @@ type connectionData struct {
 }
 
 func init() {
-	//消息注册
-	chanRPC := skeleton.ChanRPCServer
-	processor.Register(&logger.LogReq{}, n.CMDLogger, uint16(logger.CMDID_Logger_IDLogReq), chanRPC)
-	processor.Register(&logger.LogFlush{}, n.CMDLogger, uint16(logger.CMDID_Logger_IDLogFlush), chanRPC)
-
-	chanRPC.Register(g.ConnectSuccess, connectSuccess)
-	chanRPC.Register(g.Disconnect, disconnect)
-	chanRPC.Register(reflect.TypeOf(&logger.LogReq{}), handleLogReq)
-	chanRPC.Register(reflect.TypeOf(&logger.LogFlush{}), handleLogFlush)
+	g.MsgRegister(&logger.LogReq{}, n.CMDLogger, uint16(logger.CMDID_Logger_IDLogReq), handleLogReq)
+	g.MsgRegister(&logger.LogFlush{}, n.CMDLogger, uint16(logger.CMDID_Logger_IDLogFlush), handleLogFlush)
+	g.EventRegister(g.ConnectSuccess, connectSuccess)
+	g.EventRegister(g.Disconnect, disconnect)
 }
-
-type Gate struct {
-	*g.Gate
-}
-
-func (m *Gate) OnInit() {
-	g.AgentChanRPC = skeleton.ChanRPCServer
-	g.Processor = processor
-	m.Gate = &g.Gate{
-		TCPAddr: conf.Server.TCPAddr,
-	}
-}
-
-func (m *Gate) OnDestroy() {}
-
-type Module struct {
-	*module.Skeleton
-}
-
-func (m *Module) OnInit() {
-	m.Skeleton = skeleton
-}
-
-func (m *Module) OnDestroy() {}
 
 func connectSuccess(args []interface{}) {
 	log.Info("连接", "来了老弟,当前连接数=%d", len(appConnData))

@@ -2,7 +2,7 @@ package apollo
 
 import (
 	"errors"
-	"google.golang.org/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"reflect"
 	"strconv"
 	"sync"

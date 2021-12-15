@@ -1,7 +1,7 @@
 package gate
 
 import (
-	"google.golang.org/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"reflect"
 	"time"
 	"xlddz/core/conf"

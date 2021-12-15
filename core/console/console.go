@@ -9,7 +9,7 @@ import (
 	"xlddz/core/conf"
 	"xlddz/core/network"
 
-	"google.golang.org/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 )
 
 var server *network.TCPServer

@@ -4,16 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/fsnotify/fsnotify"
-	"google.golang.org/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"io/ioutil"
-	"reflect"
 	lconf "xlddz/core/conf"
 	"xlddz/core/conf/apollo"
 	g "xlddz/core/gate"
 	"xlddz/core/log"
-	"xlddz/core/module"
 	n "xlddz/core/network"
-	"xlddz/core/network/protobuf"
 	"xlddz/protocol/config"
 	"xlddz/servers/config/agollo"
 	aConfig "xlddz/servers/config/agollo/env/config"
@@ -23,48 +20,17 @@ import (
 
 var (
 	listenerList []*configChangeListener
-	skeleton     = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
-	processor    = protobuf.NewProcessor()
 )
 
 func init() {
-	//消息注册
-	chanRPC := skeleton.ChanRPCServer
-	processor.Register(&config.ApolloCfgReq{}, n.CMDConfig, uint16(config.CMDID_Config_IDApolloCfgReq), chanRPC)
+	g.MsgRegister(&config.ApolloCfgReq{}, n.CMDConfig, uint16(config.CMDID_Config_IDApolloCfgReq), handleApolloCfgReq)
+	g.EventRegister(g.ConnectSuccess, connectSuccess)
+	g.EventRegister(g.Disconnect, disconnect)
+	g.EventRegister(g.CenterConnected, centerConnected)
+	g.EventRegister(g.CenterRegResult, centerRegResult)
 
-	chanRPC.Register(reflect.TypeOf(&config.ApolloCfgReq{}), handleApolloCfgReq)
-
-	chanRPC.Register(g.ConnectSuccess, connectSuccess)
-	chanRPC.Register(g.Disconnect, disconnect)
-	chanRPC.Register(g.CenterConnected, routerConnected)
-	chanRPC.Register(g.CenterRegResult, routerRegResult)
-}
-
-type Gate struct {
-	*g.Gate
-}
-
-func (m *Gate) OnInit() {
-	g.AgentChanRPC = skeleton.ChanRPCServer
-	g.Processor = processor
-	m.Gate = &g.Gate{
-		TCPAddr:       conf.Server.TCPAddr,
-		TCPClientAddr: lconf.CenterAddr,
-	}
-}
-
-type Module struct {
-	*module.Skeleton
-}
-
-func (m *Module) OnInit() {
-
-	log.Debug("Module", "配置中心初始化")
-	m.Skeleton = skeleton
 	loadConfigs()
 }
-
-func (m *Module) OnDestroy() {}
 
 func connectSuccess(args []interface{}) {
 	log.Info("连接", "来了老弟,参数数量=%d", len(args))
@@ -154,16 +120,16 @@ func loadConfigs() {
 	}
 }
 
-func routerConnected(args []interface{}) {
+func centerConnected(args []interface{}) {
 }
 
-func routerRegResult(args []interface{}) {
+func centerRegResult(args []interface{}) {
 	r := args[0].(uint32)
 	routerId := args[1].(uint32)
 	if r == 0 {
 		listerIndex := getListenerIndex(n.AppCenter, routerId)
 		if listerIndex < 0 {
-			log.Warning("配置", "router配置不存在,listerIndex=%v,appType=%v,routerId=%v",
+			log.Warning("配置", "center配置不存在,listerIndex=%v,appType=%v,routerId=%v",
 				listerIndex, n.AppCenter, routerId)
 			return
 		}

@@ -2,25 +2,19 @@ package business
 
 import (
 	"errors"
-	"google.golang.org/protobuf/proto"
-	"reflect"
+	"github.com/golang/protobuf/proto"
 	"time"
-	lconf "xlddz/core/conf"
 	"xlddz/core/conf/apollo"
 	g "xlddz/core/gate"
 	"xlddz/core/log"
-	"xlddz/core/module"
 	n "xlddz/core/network"
-	"xlddz/core/network/protobuf"
 	"xlddz/protocol/client"
 	gcmd "xlddz/protocol/gate"
 	"xlddz/servers/gateway/conf"
 )
 
 var (
-	skeleton                                = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
 	userConnData map[uint64]*connectionData = make(map[uint64]*connectionData)
-	processor                               = protobuf.NewProcessor()
 )
 
 //连接数据
@@ -33,49 +27,16 @@ type connectionData struct {
 }
 
 func init() {
-	//消息注册
-	chanRPC := skeleton.ChanRPCServer
-	processor.Register(&gcmd.PulseReq{}, n.CMDGate, uint16(gcmd.CMDID_Gate_IDPulseReq), chanRPC)
-	processor.Register(&gcmd.TransferDataReq{}, n.CMDGate, uint16(gcmd.CMDID_Gate_IDTransferDataReq), chanRPC)
-	processor.Register(&gcmd.AuthInfo{}, n.CMDGate, uint16(gcmd.CMDID_Gate_IDAuthInfo), chanRPC)
-	processor.Register(&gcmd.HelloReq{}, n.CMDGate, uint16(gcmd.CMDID_Gate_IDHelloReq), chanRPC)
+	g.MsgRegister(&gcmd.PulseReq{}, n.CMDGate, uint16(gcmd.CMDID_Gate_IDPulseReq), handlePulseReq)
+	g.MsgRegister(&gcmd.TransferDataReq{}, n.CMDGate, uint16(gcmd.CMDID_Gate_IDTransferDataReq), handleTransferDataReq)
+	g.MsgRegister(&gcmd.AuthInfo{}, n.CMDGate, uint16(gcmd.CMDID_Gate_IDAuthInfo), handleAuthInfo)
+	g.MsgRegister(&gcmd.HelloReq{}, n.CMDGate, uint16(gcmd.CMDID_Gate_IDHelloReq), handleHelloReq)
+	g.EventRegister(g.ConnectSuccess, connectSuccess)
+	g.EventRegister(g.Disconnect, disconnect)
+	g.EventRegister(g.CenterConnected, routerConnected)
 
-	chanRPC.Register(g.ConnectSuccess, connectSuccess)
-	chanRPC.Register(g.Disconnect, disconnect)
-	chanRPC.Register(g.CenterConnected, routerConnected)
-	chanRPC.Register(reflect.TypeOf(&gcmd.PulseReq{}), handlePulseReq)
-	chanRPC.Register(reflect.TypeOf(&gcmd.TransferDataReq{}), handleTransferDataReq)
-	chanRPC.Register(reflect.TypeOf(&gcmd.AuthInfo{}), handleAuthInfo)
-	chanRPC.Register(reflect.TypeOf(&gcmd.HelloReq{}), handleHelloReq)
+	g.Skeleton.AfterFunc(30*time.Second, checkConnectionAlive)
 }
-
-type Gate struct {
-	*g.Gate
-}
-
-func (m *Gate) OnInit() {
-	g.AgentChanRPC = skeleton.ChanRPCServer
-	g.Processor = processor
-	m.Gate = &g.Gate{
-		TCPAddr:       conf.Server.TCPAddr,
-		TCPClientAddr: lconf.CenterAddr,
-		MaxConnNum:    20000,
-	}
-
-	skeleton.AfterFunc(30*time.Second, checkConnectionAlive)
-}
-
-func (m *Gate) OnDestroy() {}
-
-type Module struct {
-	*module.Skeleton
-}
-
-func (m *Module) OnInit() {
-	m.Skeleton = skeleton
-}
-
-func (m *Module) OnDestroy() {}
 
 func connectSuccess(args []interface{}) {
 	if len(args) != 2 {
@@ -227,5 +188,5 @@ func checkConnectionAlive() {
 		c.a.Close()
 	}
 
-	skeleton.AfterFunc(30*time.Second, checkConnectionAlive)
+	g.Skeleton.AfterFunc(30*time.Second, checkConnectionAlive)
 }

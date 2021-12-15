@@ -3,26 +3,21 @@ package business
 import (
 	"encoding/json"
 	"fmt"
-	"google.golang.org/protobuf/proto"
+	"github.com/golang/protobuf/proto"
 	"math/rand"
-	"reflect"
 	"time"
 	lconf "xlddz/core/conf"
 	"xlddz/core/conf/apollo"
 	g "xlddz/core/gate"
 	"xlddz/core/log"
-	"xlddz/core/module"
 	n "xlddz/core/network"
-	"xlddz/core/network/protobuf"
 	"xlddz/protocol/center"
 	"xlddz/servers/center/conf"
 )
 
 var (
-	skeleton                                      = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
 	appConnData map[n.AgentClient]*connectionData = make(map[n.AgentClient]*connectionData)
 	appRegData  map[uint64]*connectionData        = make(map[uint64]*connectionData)
-	processor                                     = protobuf.NewProcessor()
 )
 
 const (
@@ -48,48 +43,16 @@ type connectionData struct {
 }
 
 func init() {
-	//消息注册
-	chanRPC := skeleton.ChanRPCServer
-	processor.Register(&center.RegisterAppReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppRegReq), chanRPC)
-	processor.Register(&center.AppStateNotify{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppState), chanRPC)
-	processor.Register(&center.AppPulseNotify{}, n.CMDCenter, uint16(center.CMDID_Center_IDPulseNotify), chanRPC)
-	processor.Register(&center.AppOfflineReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppOfflineReq), chanRPC)
-	processor.Register(&center.AppUpdateReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppUpdateReq), chanRPC)
-
-	chanRPC.Register(g.ConnectSuccess, connectSuccess)
-	chanRPC.Register(g.Disconnect, disconnect)
-	chanRPC.Register(reflect.TypeOf(&center.RegisterAppReq{}), handleRegisterAppReq)
-	chanRPC.Register(reflect.TypeOf(&center.AppStateNotify{}), handleAppStateNotify)
-	chanRPC.Register(reflect.TypeOf(&center.AppPulseNotify{}), handleAppPulseNotify)
-	chanRPC.Register(reflect.TypeOf(&center.AppOfflineReq{}), handleAppOfflineReq)
-	chanRPC.Register(reflect.TypeOf(&center.AppUpdateReq{}), handleAppUpdateReq)
+	g.MsgRegister(&center.RegisterAppReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppRegReq), handleRegisterAppReq)
+	g.MsgRegister(&center.AppStateNotify{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppState), handleAppStateNotify)
+	g.MsgRegister(&center.AppPulseNotify{}, n.CMDCenter, uint16(center.CMDID_Center_IDPulseNotify), handleAppPulseNotify)
+	g.MsgRegister(&center.AppOfflineReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppOfflineReq), handleAppOfflineReq)
+	g.MsgRegister(&center.AppUpdateReq{}, n.CMDCenter, uint16(center.CMDID_Center_IDAppUpdateReq), handleAppUpdateReq)
+	g.EventRegister(g.ConnectSuccess, connectSuccess)
+	g.EventRegister(g.Disconnect, disconnect)
 
 	apollo.RegPublicCB(configChangeNotify)
 }
-
-type Gate struct {
-	*g.Gate
-}
-
-func (m *Gate) OnInit() {
-	g.AgentChanRPC = skeleton.ChanRPCServer
-	g.Processor = processor
-	m.Gate = &g.Gate{
-		TCPAddr: conf.Server.TCPAddr,
-	}
-}
-
-func (m *Gate) OnDestroy() {}
-
-type Module struct {
-	*module.Skeleton
-}
-
-func (m *Module) OnInit() {
-	m.Skeleton = skeleton
-}
-
-func (m *Module) OnDestroy() {}
 
 func connectSuccess(args []interface{}) {
 	log.Info("连接", "来了老弟,当前连接数=%d", len(appConnData))
@@ -189,32 +152,25 @@ func handleRegisterAppReq(args []interface{}) {
 	log.Debug("注册", "服务注册,appType=%v,appId=%v,regKey=%v,%v",
 		m.GetAppType(), m.GetAppId(), regKey, m.GetMyAddress())
 
-	var rsp center.RegisterAppRsp
-	rsp.RegResult = proto.Uint32(0)
-	rsp.ReregToken = proto.String(token)
-	rsp.CenterId = proto.Uint32(conf.Server.AppID)
-	rsp.AppName = proto.String(m.GetAppName())
-	rsp.AppType = proto.Uint32(m.GetAppType())
-	rsp.AppId = proto.Uint32(m.GetAppId())
-	rsp.AppAddress = proto.String(m.GetMyAddress())
-	for k, _ := range appConnData {
-		k.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDAppRegRsp), &rsp)
+	sendRsp := func(a n.AgentClient, i appRegInfo) {
+		var rsp center.RegisterAppRsp
+		rsp.RegResult = proto.Uint32(0)
+		rsp.ReregToken = proto.String(token)
+		rsp.CenterId = proto.Uint32(conf.Server.AppID)
+		rsp.AppName = proto.String(i.appName)
+		rsp.AppType = proto.Uint32(i.appType)
+		rsp.AppId = proto.Uint32(i.appId)
+		rsp.AppAddress = proto.String(i.address)
+		a.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDAppRegRsp), &rsp)
 	}
 
 	//广播已注册
-	for _, v := range appConnData {
+	for k, v := range appConnData {
+		sendRsp(k, appRegData[regKey].regInfo)
 		if v.regInfo.appType == m.GetAppType() && v.regInfo.appId == m.GetAppId() {
 			continue
 		}
-		var rsp center.RegisterAppRsp
-		rsp.RegResult = proto.Uint32(0)
-		rsp.ReregToken = proto.String(v.regInfo.regToken)
-		rsp.CenterId = proto.Uint32(conf.Server.AppID)
-		rsp.AppName = proto.String(v.regInfo.appName)
-		rsp.AppType = proto.Uint32(v.regInfo.appType)
-		rsp.AppId = proto.Uint32(v.regInfo.appId)
-		rsp.AppAddress = proto.String(v.regInfo.address)
-		a.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDAppRegRsp), &rsp)
+		sendRsp(a, v.regInfo)
 	}
 }
 
