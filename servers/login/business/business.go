@@ -26,10 +26,10 @@ func disconnect(args []interface{}) {
 }
 
 func handleLoginReq(args []interface{}) {
-	//a := args[n.AGENT_INDEX].(n.AgentClient)
-	b := args[n.DATA_INDEX].(n.BaseMessage)
+	//a := args[n.AgentIndex].(n.AgentClient)
+	b := args[n.DataIndex].(n.BaseMessage)
 	m := (b.MyMessage).(*client.LoginReq)
-	srcData := args[n.OTHER_INDEX].(*gate.TransferDataReq)
+	srcData := args[n.OtherIndex].(*gate.TransferDataReq)
 
 	log.Debug("登录", "收到登录,主渠道=%d,子渠道=%d", m.GetChannelId(), m.GetSiteId())
 
@@ -37,7 +37,7 @@ func handleLoginReq(args []interface{}) {
 }
 
 func handleLogoutReq(args []interface{}) {
-	b := args[n.DATA_INDEX].(n.BaseMessage)
+	b := args[n.DataIndex].(n.BaseMessage)
 	m := (b.MyMessage).(*client.LogoutReq)
 	log.Debug("注销", "注销请求,userId=%v", m.GetUserId())
 }

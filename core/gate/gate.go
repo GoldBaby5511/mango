@@ -21,10 +21,11 @@ import (
 
 //网络事件
 const (
-	ConnectSuccess  string = "ConnectSuccess"
-	Disconnect      string = "Disconnect"
-	CenterConnected string = "CenterConnected"
-	CenterRegResult string = "CenterRegResult"
+	ConnectSuccess   string = "ConnectSuccess"
+	Disconnect       string = "Disconnect"
+	CenterConnected  string = "CenterConnected"
+	CenterDisconnect string = "CenterDisconnect"
+	CenterRegResult  string = "CenterRegResult"
 )
 
 const (
@@ -34,12 +35,13 @@ const (
 
 var (
 	cbCenterDisconnect []func()
-	tcpLog             *n.TCPClient
+	tcpLog             *n.TCPClient = nil
 	mxServers          sync.Mutex
+	wg                 sync.WaitGroup
 	servers            map[uint64]*agentServer = make(map[uint64]*agentServer)
-	AgentChanRPC       *chanrpc.Server
+	agentChanRPC       *chanrpc.Server
 	Skeleton           = module.NewSkeleton(conf.GoLen, conf.TimerDispatcherLen, conf.AsynCallLen, conf.ChanRPCLen)
-	Processor          = protobuf.NewProcessor()
+	processor          = protobuf.NewProcessor()
 	MaxConnNum         int
 	PendingWriteNum    int
 	MaxMsgLen          uint32
@@ -51,39 +53,46 @@ var (
 	KeyFile     string
 
 	// tcp
-	LenMsgLen    int
-	LittleEndian bool
-	closeSig     chan bool
+	LenMsgLen int
+	closeSig  chan bool
 )
 
 func init() {
-	if tcpLog == nil {
-		tcpLog = new(n.TCPClient)
-	}
+	tcpLog = new(n.TCPClient)
 	cbCenterDisconnect = append(cbCenterDisconnect, apollo.CenterDisconnect)
 	apollo.RegPublicCB(ApolloNotify)
-	AgentChanRPC = Skeleton.ChanRPCServer
+	agentChanRPC = Skeleton.ChanRPCServer
 	closeSig = make(chan bool, 1)
 }
 
 func Start() {
+
+	if conf.AppInfo.AppType == n.AppCenter {
+		apollo.RegisterConfig("", conf.AppInfo.AppType, conf.AppInfo.AppID, nil)
+	}
+
+	wg.Add(2)
 	go func() {
 		Skeleton.Run()
+		wg.Done()
 	}()
 
 	go func() {
 		Run()
+		wg.Done()
 	}()
 }
 
 func Stop() {
+	defer util.TryE(conf.AppInfo.AppName)
 	Skeleton.Close()
 	closeSig <- true
+	wg.Wait()
 }
 
 func MsgRegister(m proto.Message, mainCmdId uint32, subCmdId uint16, f interface{}) {
 	chanRPC := Skeleton.ChanRPCServer
-	Processor.Register(m, mainCmdId, subCmdId, chanRPC)
+	processor.Register(m, mainCmdId, subCmdId, chanRPC)
 	chanRPC.Register(reflect.TypeOf(m), f)
 }
 
@@ -93,7 +102,7 @@ func EventRegister(id interface{}, f interface{}) {
 
 func Run() {
 
-	log.Debug("", "Run,TCPAddr=%v", conf.ListenOnAddress)
+	log.Debug("", "Run,ListenOnAddress=%v", conf.AppInfo.ListenOnAddress)
 
 	var wsServer *n.WSServer
 	if WSAddr != "" {
@@ -107,34 +116,33 @@ func Run() {
 		wsServer.KeyFile = KeyFile
 		wsServer.NewAgent = func(conn *n.WSConn) n.AgentClient {
 			a := &agentClient{conn: conn}
-			if AgentChanRPC != nil {
-				AgentChanRPC.Go(ConnectSuccess, a)
+			if agentChanRPC != nil {
+				agentChanRPC.Go(ConnectSuccess, a)
 			}
 			return a
 		}
 	}
 
 	var tcpServer *n.TCPServer
-	if conf.ListenOnAddress != "" {
+	if conf.AppInfo.ListenOnAddress != "" {
 		tcpServer = new(n.TCPServer)
-		tcpServer.Addr = conf.ListenOnAddress
+		tcpServer.Addr = conf.AppInfo.ListenOnAddress
 		tcpServer.MaxConnNum = MaxConnNum
 		tcpServer.PendingWriteNum = PendingWriteNum
 		tcpServer.LenMsgLen = LenMsgLen
 		tcpServer.MaxMsgLen = MaxMsgLen
-		tcpServer.LittleEndian = LittleEndian
 		tcpServer.GetConfig = apollo.GetConfigAsInt64
 		tcpServer.NewAgent = func(conn *n.TCPConn, agentId uint64) n.AgentClient {
 			a := &agentClient{id: agentId, conn: conn, info: n.BaseAgentInfo{AgentType: n.NormalUser}}
-			if AgentChanRPC != nil {
-				AgentChanRPC.Go(ConnectSuccess, a, agentId)
+			if agentChanRPC != nil {
+				agentChanRPC.Go(ConnectSuccess, a, agentId)
 			}
 			return a
 		}
 	}
 
-	if conf.CenterAddr != "" && conf.AppType != n.AppCenter {
-		newServerItem(n.BaseAgentInfo{AgentType: n.CommonServer, AppName: "center", AppType: n.AppCenter, ListenOnAddress: conf.CenterAddr}, true, PendingWriteNum)
+	if conf.AppInfo.CenterAddr != "" && conf.AppInfo.AppType != n.AppCenter {
+		newServerItem(n.BaseAgentInfo{AgentType: n.CommonServer, AppName: "center", AppType: n.AppCenter, ListenOnAddress: conf.AppInfo.CenterAddr}, true, PendingWriteNum)
 	}
 
 	if wsServer != nil {
@@ -157,8 +165,7 @@ func Run() {
 }
 
 func ApolloNotify(k apollo.ConfKey, v apollo.ConfValue) {
-	//得到日志服务
-	if conf.AppType != n.AppLogger && k.Key == "日志服务器地址" && v.Value != "" &&
+	if conf.AppInfo.AppType != n.AppLogger && k.Key == "日志服务器地址" && v.Value != "" &&
 		v.RspCount == 1 && tcpLog != nil && !tcpLog.IsRunning() {
 		logAddr := v.Value
 		if v, ok := util.ParseArgs("/DockerRun"); ok && v == 1 {
@@ -186,13 +193,13 @@ func ApolloNotify(k apollo.ConfKey, v apollo.ConfValue) {
 				var logReq logger.LogReq
 				logReq.FileName = proto.String(i.File)
 				logReq.LineNo = proto.Uint32(uint32(i.Line))
-				logReq.SrcApptype = proto.Uint32(conf.AppType)
-				logReq.SrcAppid = proto.Uint32(conf.AppID)
+				logReq.SrcApptype = proto.Uint32(conf.AppInfo.AppType)
+				logReq.SrcAppid = proto.Uint32(conf.AppInfo.AppID)
 				logReq.Content = []byte(i.LogStr)
 				logReq.ClassName = []byte(i.Classname)
 				logReq.LogLevel = proto.Uint32(uint32(i.Level))
 				logReq.TimeMs = proto.Uint64(i.TimeMs)
-				logReq.SrcAppname = proto.String(conf.AppName)
+				logReq.SrcAppname = proto.String(conf.AppInfo.AppName)
 				cmd := n.TCPCommand{MainCmdID: uint16(n.CMDLogger), SubCmdID: uint16(logger.CMDID_Logger_IDLogReq)}
 				bm := n.BaseMessage{MyMessage: &logReq, Cmd: cmd}
 				a.SendMessage(bm)
@@ -208,14 +215,14 @@ func ApolloNotify(k apollo.ConfKey, v apollo.ConfValue) {
 func sendRegAppReq(a *agentServer) {
 	var registerReq center.RegisterAppReq
 	registerReq.AuthKey = proto.String("GoldBaby")
-	registerReq.AppName = proto.String(conf.AppName)
-	registerReq.AppType = proto.Uint32(conf.AppType)
-	registerReq.AppId = proto.Uint32(conf.AppID)
-	myAddress := conf.ListenOnAddress
+	registerReq.AppName = proto.String(conf.AppInfo.AppName)
+	registerReq.AppType = proto.Uint32(conf.AppInfo.AppType)
+	registerReq.AppId = proto.Uint32(conf.AppInfo.AppID)
+	myAddress := conf.AppInfo.ListenOnAddress
 	if v, ok := util.ParseArgs("/DockerRun"); ok && v == 1 {
-		addr := strings.Split(conf.ListenOnAddress, ":")
+		addr := strings.Split(conf.AppInfo.ListenOnAddress, ":")
 		if len(addr) == 2 {
-			myAddress = conf.AppName + ":" + addr[1]
+			myAddress = conf.AppInfo.AppName + ":" + addr[1]
 		}
 	}
 	registerReq.MyAddress = proto.String(myAddress)

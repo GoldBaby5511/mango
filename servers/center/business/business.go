@@ -12,7 +12,6 @@ import (
 	"xlddz/core/log"
 	n "xlddz/core/network"
 	"xlddz/protocol/center"
-	"xlddz/servers/center/conf"
 )
 
 var (
@@ -81,7 +80,7 @@ func disconnect(args []interface{}) {
 
 func configChangeNotify(k apollo.ConfKey, v apollo.ConfValue) {
 
-	key := apollo.ConfKey{AppType: lconf.AppType, AppId: lconf.AppID, Key: "服务维护"}
+	key := apollo.ConfKey{AppType: lconf.AppInfo.AppType, AppId: lconf.AppInfo.AppID, Key: "服务维护"}
 	if k == key {
 		type appInfo struct {
 			AppType uint32
@@ -106,9 +105,9 @@ func configChangeNotify(k apollo.ConfKey, v apollo.ConfValue) {
 }
 
 func handleRegisterAppReq(args []interface{}) {
-	b := args[n.DATA_INDEX].(n.BaseMessage)
+	b := args[n.DataIndex].(n.BaseMessage)
 	m := (b.MyMessage).(*center.RegisterAppReq)
-	a := args[n.AGENT_INDEX].(n.AgentClient)
+	a := args[n.AgentIndex].(n.AgentClient)
 
 	//连接存在判断
 	if _, ok := appConnData[a]; !ok {
@@ -133,7 +132,7 @@ func handleRegisterAppReq(args []interface{}) {
 			var rsp center.RegisterAppRsp
 			rsp.RegResult = proto.Uint32(1)
 			rsp.ReregToken = proto.String(resultMsg)
-			rsp.CenterId = proto.Uint32(conf.Server.AppID)
+			rsp.CenterId = proto.Uint32(lconf.AppInfo.AppID)
 			a.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDAppRegRsp), &rsp)
 
 			a.Close()
@@ -156,7 +155,7 @@ func handleRegisterAppReq(args []interface{}) {
 		var rsp center.RegisterAppRsp
 		rsp.RegResult = proto.Uint32(0)
 		rsp.ReregToken = proto.String(token)
-		rsp.CenterId = proto.Uint32(conf.Server.AppID)
+		rsp.CenterId = proto.Uint32(lconf.AppInfo.AppID)
 		rsp.AppName = proto.String(i.appName)
 		rsp.AppType = proto.Uint32(i.appType)
 		rsp.AppId = proto.Uint32(i.appId)
@@ -179,9 +178,9 @@ func handleAppStateNotify(args []interface{}) {
 }
 
 func handleAppPulseNotify(args []interface{}) {
-	b := args[n.DATA_INDEX].(n.BaseMessage)
+	b := args[n.DataIndex].(n.BaseMessage)
 	m := (b.MyMessage).(*center.AppPulseNotify)
-	a := args[n.AGENT_INDEX].(n.AgentClient)
+	a := args[n.AgentIndex].(n.AgentClient)
 
 	//非法判断
 	if _, ok := appConnData[a]; !ok {
@@ -219,7 +218,7 @@ func broadcastAppState(appType, appId uint32) {
 		}
 		var rsp center.AppStateNotify
 		rsp.AppState = proto.Uint32(uint32(center.AppStateNotify_OffLine))
-		rsp.CenterId = proto.Uint32(conf.Server.AppID)
+		rsp.CenterId = proto.Uint32(lconf.AppInfo.AppID)
 		rsp.AppType = proto.Uint32(appType)
 		rsp.AppId = proto.Uint32(appId)
 		a.SendData(n.CMDCenter, uint32(center.CMDID_Center_IDAppState), &rsp)

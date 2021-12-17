@@ -6,10 +6,9 @@ import (
 	"path"
 	"runtime/debug"
 	"time"
-	"xlddz/core/conf"
 )
 
-func TryE() {
+func TryE(appName string) {
 	errs := recover()
 	if errs == nil {
 		return
@@ -20,7 +19,7 @@ func TryE() {
 	pathname := ""
 	curPath, err := GetCurrentPath()
 	if err == nil {
-		pathname = curPath + "log/" + conf.AppName + "/"
+		pathname = curPath + "log/" + appName + "/"
 		_, err := os.Stat(pathname)
 		if err != nil && os.IsNotExist(err) {
 			err = os.MkdirAll(pathname, os.ModePerm)

@@ -3,9 +3,9 @@ package network
 import (
 	"bytes"
 	"encoding/binary"
+	"fmt"
 	"io"
 	"math"
-	"xlddz/core/log"
 )
 
 //appid类型
@@ -39,16 +39,16 @@ const (
 	AppActionData      uint32 = 73
 )
 
-//回调参数列表下标
 const (
-	DATA_INDEX  = 0 //数据
-	AGENT_INDEX = 1 //网络代理
-	CMD_INDEX   = 2 //TCPCommon
-	OTHER_INDEX = 3 //其他
+	DataIndex  = 0 //数据
+	AgentIndex = 1 //网络代理
+	CMDIndex   = 2 //TCPCommon
+	OtherIndex = 3 //其他
 )
 
-//默认网络消息rpc处理Id
-const DefaultNetMsgFuncId string = "DefaultNetMsgFuncId"
+const (
+	MinRouteArgsCount = 3
+)
 
 //网络命令
 type TCPCommand struct {
@@ -62,7 +62,6 @@ const (
 	TraceIdLen       = 16
 )
 
-// PackageHeader 比赛架构下的消息头
 type PackageHeader struct {
 	version uint8
 	encrypt uint8
@@ -83,18 +82,16 @@ type BaseMessage struct {
 // | 4bit(msgSize) | 2bit(headSize) | 1bit(version) + 1bit(encrypt) + 2bit(CmdKind) + 2bit(CmdId) + Xbit(other) | msgData
 // --------------
 type MsgParser struct {
-	lenMsgLen    int
-	minMsgLen    uint32
-	maxMsgLen    uint32
-	littleEndian bool
+	lenMsgLen int
+	minMsgLen uint32
+	maxMsgLen uint32
 }
 
 func NewMsgParser() *MsgParser {
 	p := new(MsgParser)
 	p.lenMsgLen = 2
 	p.minMsgLen = 8
-	p.maxMsgLen = 4096
-	p.littleEndian = false
+	p.maxMsgLen = 8 * 1024
 
 	return p
 }
@@ -128,32 +125,27 @@ func (p *MsgParser) SetMsgLen(lenMsgLen int, minMsgLen uint32, maxMsgLen uint32)
 	}
 }
 
-// It's dangerous to call the method on reading or writing
-func (p *MsgParser) SetByteOrder(littleEndian bool) {
-	p.littleEndian = littleEndian
-}
-
 // |	msgSize	 |	headSize		| 						header 												| msgData
 // |4bit(msgSize)| 2bit(headSize) 	| 1bit(version) + 1bit(encrypt) + 2bit(CmdKind) + 2bit(CmdId) + Xbit(other) | msgData
 func (p *MsgParser) Read(conn *TCPConn) (BaseMessage, []byte, error) {
-	//读取消息头
 	msgSizeBuf := make([]byte, 4)
 	if _, err := io.ReadFull(conn, msgSizeBuf); err != nil {
-		log.Warning("MsgParser", "消息头读取失败,%v", err)
-		return BaseMessage{}, nil, err
+		return BaseMessage{}, nil, fmt.Errorf("消息头读取失败,%v", err)
 	}
 
 	var msgSize uint32 = 0
 	if err := binary.Read(bytes.NewBuffer(msgSizeBuf), binary.BigEndian, &msgSize); err != nil {
-		log.Error("MsgParser", "消息体长度读取失败,%v", err)
-		return BaseMessage{}, nil, err
+		return BaseMessage{}, nil, fmt.Errorf("消息体长度读取失败,%v", err)
+	}
+
+	if msgSize < p.minMsgLen || msgSize > p.maxMsgLen {
+		return BaseMessage{}, nil, fmt.Errorf("消息长度有问题,msgSize=%v,minMsgLen=%d,maxMsgLen=%d", msgSize, p.minMsgLen, p.maxMsgLen)
 	}
 
 	// data
 	allData := make([]byte, msgSize)
 	if _, err := io.ReadFull(conn, allData); err != nil {
-		log.Error("MsgParser", "消息体内容读取失败,%v", err)
-		return BaseMessage{}, nil, err
+		return BaseMessage{}, nil, fmt.Errorf("消息体内容读取失败,%v", err)
 	}
 
 	var headSize uint16 = 0

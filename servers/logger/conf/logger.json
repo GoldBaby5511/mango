@@ -1,5 +1,7 @@
 {
     "AppName": "logger",
+    "AppType": 8,
     "AppID": 0,
-    "TCPAddr": "0.0.0.0:20001"
+    "ListenOnAddress": "0.0.0.0:20001",
+    "CenterAddr": ""
 }

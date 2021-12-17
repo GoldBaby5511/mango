@@ -1,5 +1,7 @@
 {
     "AppName": "center",
+    "AppType": 6,
     "AppID": 10,
-    "TCPAddr": "0.0.0.0:10001"
+    "ListenOnAddress": "0.0.0.0:10001",
+    "CenterAddr": ""
 }

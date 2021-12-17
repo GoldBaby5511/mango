@@ -61,7 +61,6 @@ func SetNetAgent(a network.AgentServer) {
 	}(timer)
 }
 
-//router断开
 func CenterDisconnect() {
 	regSubList = make(map[ConfKey]*ConfValue)
 }
@@ -117,9 +116,8 @@ func ProcessReq(cmd *network.TCPCommand, data []byte) error {
 	return nil
 }
 
-// 读取配置中心的配置，找不到时，返回空字符串
 func GetConfig(key, defaultValue string) string {
-	nsKey := ConfKey{Key: key, AppType: conf.AppType, AppId: conf.AppID}
+	nsKey := ConfKey{Key: key, AppType: conf.AppInfo.AppType, AppId: conf.AppInfo.AppID}
 	mutexConfig.Lock()
 	defer mutexConfig.Unlock()
 	if item, ok := configValues[nsKey]; ok {
@@ -128,7 +126,6 @@ func GetConfig(key, defaultValue string) string {
 	return defaultValue
 }
 
-// 读取配置中心的配置，找不到或出错时，返回0
 func GetConfigAsInt64(key string, defaultValue int64) int64 {
 	v, _ := strconv.ParseInt(GetConfig(key, strconv.FormatInt(defaultValue, 10)), 10, 64)
 	return v
@@ -146,11 +143,9 @@ func RegisterConfig(key string, reqAppType, reqAppId uint32, cb cbNotify) {
 	mxRegSub.Unlock()
 	log.Info("Apollo", "注册Apollo订阅，%v", nsKey)
 
-	//发起一次订阅
 	SendSubscribeReq(nsKey, false)
 }
 
-//发送订阅
 func SendSubscribeReq(k ConfKey, cancel bool) {
 	if netAgent == nil {
 		return
@@ -163,8 +158,8 @@ func SendSubscribeReq(k ConfKey, cancel bool) {
 	}
 
 	var req config.ApolloCfgReq
-	req.AppType = proto.Uint32(conf.AppType)
-	req.AppId = proto.Uint32(conf.AppID)
+	req.AppType = proto.Uint32(conf.AppInfo.AppType)
+	req.AppId = proto.Uint32(conf.AppInfo.AppID)
 	req.SubAppType = proto.Uint32(k.AppType)
 	req.SubAppId = proto.Uint32(k.AppId)
 	req.KeyName = proto.String(k.Key)
@@ -182,7 +177,6 @@ func SendSubscribeReq(k ConfKey, cancel bool) {
 	netAgent.SendMessage(bm)
 }
 
-//注册回调
 func RegPublicCB(cb cbNotify) {
 	if cb == nil {
 		return

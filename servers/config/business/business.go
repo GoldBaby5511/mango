@@ -44,7 +44,7 @@ func loadConfigs() {
 	//是否使用Apollo
 	if conf.Server.UseApollo {
 		c := &conf.Server.Config
-		listenerConf := conf.ApolloConfig{ServerType: lconf.AppType, ServerId: conf.Server.AppID}
+		listenerConf := conf.ApolloConfig{ServerType: lconf.AppInfo.AppType, ServerId: conf.Server.AppID}
 		listener := newListener(c, listenerConf)
 		agollo.SetLogger(&DefaultLogger{})
 		client, _ := agollo.StartWithConfig(func() (*aConfig.AppConfig, error) {
@@ -368,7 +368,7 @@ func (d *DefaultLogger) Error(v ...interface{}) {
 }
 
 func handleApolloCfgReq(args []interface{}) {
-	b := args[n.DATA_INDEX].(n.BaseMessage)
+	b := args[n.DataIndex].(n.BaseMessage)
 	m := (b.MyMessage).(*config.ApolloCfgReq)
 
 	log.Debug("配置", "收到配置请求,AppType=%v,AppId=%v,KeyName=%v,SubAppType=%v,SubAppId=%v,Subscribe=%v",

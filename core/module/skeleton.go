@@ -3,7 +3,6 @@ package module
 import (
 	"time"
 	"xlddz/core/chanrpc"
-	"xlddz/core/console"
 	"xlddz/core/timer"
 
 	g "xlddz/core/go"
@@ -132,8 +131,4 @@ func (s *Skeleton) RegisterChanRPC(id interface{}, f interface{}) {
 	}
 
 	s.server.Register(id, f)
-}
-
-func (s *Skeleton) RegisterCommand(name string, help string, f interface{}) {
-	console.Register(name, help, f, s.commandServer)
 }

@@ -77,8 +77,6 @@ func (s *Server) Register(id interface{}, f interface{}) {
 		panic(fmt.Sprintf("function id %v: already registered", id))
 	}
 
-	//log.Debug("chanrpc", "注册,id=%v,f=%v", id, f)
-
 	s.functions[id] = f
 }
 

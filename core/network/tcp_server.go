@@ -25,11 +25,10 @@ type TCPServer struct {
 	agentId         uint64
 
 	// msg parser
-	LenMsgLen    int
-	MinMsgLen    uint32
-	MaxMsgLen    uint32
-	LittleEndian bool
-	msgParser    *MsgParser
+	LenMsgLen int
+	MinMsgLen uint32
+	MaxMsgLen uint32
+	msgParser *MsgParser
 }
 
 func (server *TCPServer) Start() {
@@ -61,7 +60,6 @@ func (server *TCPServer) init() {
 	// msg parser
 	msgParser := NewMsgParser()
 	msgParser.SetMsgLen(server.LenMsgLen, server.MinMsgLen, server.MaxMsgLen)
-	msgParser.SetByteOrder(server.LittleEndian)
 	server.msgParser = msgParser
 }
 

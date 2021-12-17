@@ -6,7 +6,6 @@ import (
 	"xlddz/core"
 	"xlddz/core/log"
 	_ "xlddz/servers/gateway/business"
-	_ "xlddz/servers/gateway/conf"
 )
 
 func main() {
@@ -18,6 +17,6 @@ func main() {
 		os.Exit(0)
 	}()
 
-	core.Start()
+	core.Start("gateway")
 
 }

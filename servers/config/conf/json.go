@@ -3,23 +3,21 @@ package conf
 import (
 	"encoding/json"
 	"io/ioutil"
-	lconf "xlddz/core/conf"
 	"xlddz/core/log"
-	n "xlddz/core/network"
 	aConfig "xlddz/servers/config/agollo/env/config"
 )
 
 var Server struct {
-	TCPClientAddr string
-	TCPAddr       string
-	AppID         uint32
-	AppName       string
-	MaxConnNum    int
-	ConsolePort   int
-	ScreenPrint   bool
-	UseApollo     bool `default:"false" json:"UseApollo"`
-	Config        aConfig.AppConfig
-	CommonServers []ApolloConfig
+	CenterAddr      string
+	ListenOnAddress string
+	AppID           uint32
+	AppName         string
+	MaxConnNum      int
+	ConsolePort     int
+	ScreenPrint     bool
+	UseApollo       bool `default:"false" json:"UseApollo"`
+	Config          aConfig.AppConfig
+	CommonServers   []ApolloConfig
 }
 
 type ApolloConfig struct {
@@ -41,11 +39,5 @@ func init() {
 		log.Fatal("jsonconf", "%v", err)
 	}
 
-	lconf.ConsolePort = Server.ConsolePort
-	lconf.AppName = Server.AppName
-	lconf.AppID = Server.AppID
-	lconf.AppType = n.AppConfig
-	lconf.ListenOnAddress = Server.TCPAddr
-	lconf.CenterAddr = Server.TCPClientAddr
 	log.Info("jsonconf", "配置文件载入成功%v", Server)
 }

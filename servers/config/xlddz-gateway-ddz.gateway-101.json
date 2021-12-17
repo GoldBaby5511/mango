@@ -1,1 +1,18 @@
-{"appId":"xlddz-gateway","cluster":"10101","namespaceName":"ddz.gateway","releaseKey":"20211119184737-6c788ee6517284d3+20211119180205-a4528ee6517284cb","configurations":{"LogScreenPrint":"1","appid":"101","router地址":"","title":"网关1","内存限制":"0","开始监控连接数量":"5000","心跳间隔":"600","日志服务器地址":"127.0.0.1:20001","监听地址":"","监控间隔":"1000"}}
+{
+    "appId": "xlddz-gateway",
+    "cluster": "10101",
+    "namespaceName": "ddz.gateway",
+    "releaseKey": "20211119184737-6c788ee6517284d3+20211119180205-a4528ee6517284cb",
+    "configurations": {
+        "LogScreenPrint": "1",
+        "appid": "101",
+        "router地址": "",
+        "title": "网关1",
+        "内存限制": "0",
+        "开始监控连接数量": "5000",
+        "心跳间隔": "600",
+        "日志服务器地址": "127.0.0.1:20001",
+        "监听地址": "",
+        "监控间隔": "1000"
+    }
+}

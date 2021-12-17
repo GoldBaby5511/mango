@@ -4,13 +4,13 @@ import (
 	"errors"
 	"github.com/golang/protobuf/proto"
 	"time"
+	"xlddz/core/conf"
 	"xlddz/core/conf/apollo"
 	g "xlddz/core/gate"
 	"xlddz/core/log"
 	n "xlddz/core/network"
 	"xlddz/protocol/client"
 	gcmd "xlddz/protocol/gate"
-	"xlddz/servers/gateway/conf"
 )
 
 var (
@@ -33,7 +33,7 @@ func init() {
 	g.MsgRegister(&gcmd.HelloReq{}, n.CMDGate, uint16(gcmd.CMDID_Gate_IDHelloReq), handleHelloReq)
 	g.EventRegister(g.ConnectSuccess, connectSuccess)
 	g.EventRegister(g.Disconnect, disconnect)
-	g.EventRegister(g.CenterConnected, routerConnected)
+	g.EventRegister(g.CenterConnected, centerConnected)
 
 	g.Skeleton.AfterFunc(30*time.Second, checkConnectionAlive)
 }
@@ -72,12 +72,12 @@ func disconnect(args []interface{}) {
 	}
 }
 
-func routerConnected(args []interface{}) {
+func centerConnected(args []interface{}) {
 }
 
 func handlePulseReq(args []interface{}) {
-	//m := args[n.DATA_INDEX].(*gcmd.PulseReq)
-	a := args[n.AGENT_INDEX].(n.AgentClient)
+	//m := args[n.DataIndex].(*gcmd.PulseReq)
+	a := args[n.AgentIndex].(n.AgentClient)
 
 	connData, err := getUserConnData(a)
 	if err != nil {
@@ -91,9 +91,9 @@ func handlePulseReq(args []interface{}) {
 }
 
 func handleTransferDataReq(args []interface{}) {
-	b := args[n.DATA_INDEX].(n.BaseMessage)
+	b := args[n.DataIndex].(n.BaseMessage)
 	m := (b.MyMessage).(*gcmd.TransferDataReq)
-	a := args[n.AGENT_INDEX].(n.AgentClient)
+	a := args[n.AgentIndex].(n.AgentClient)
 
 	connData, err := getUserConnData(a)
 	if err != nil {
@@ -115,7 +115,7 @@ func handleTransferDataReq(args []interface{}) {
 		}
 		a.SendData(n.CMDGate, uint32(gcmd.CMDID_Gate_IDTransferDataReq), m)
 	} else {
-		m.Gateid = proto.Uint32(conf.Server.AppID)
+		m.Gateid = proto.Uint32(conf.AppInfo.AppID)
 		m.Gateconnid = proto.Uint64(makeGateConnID(connData.connId))
 		g.SendData2App(m.GetAttApptype(), m.GetAttAppid(), n.CMDGate, uint32(gcmd.CMDID_Gate_IDTransferDataReq), m)
 	}
@@ -127,9 +127,9 @@ func handleAuthInfo(args []interface{}) {
 }
 
 func handleHelloReq(args []interface{}) {
-	b := args[n.DATA_INDEX].(n.BaseMessage)
+	b := args[n.DataIndex].(n.BaseMessage)
 	m := (b.MyMessage).(*gcmd.HelloReq)
-	a := args[n.AGENT_INDEX].(n.AgentClient)
+	a := args[n.AgentIndex].(n.AgentClient)
 
 	connData, err := getUserConnData(a)
 	if err != nil {
@@ -152,7 +152,7 @@ func handleHelloReq(args []interface{}) {
 }
 
 func makeGateConnID(connId uint64) uint64 {
-	return uint64(conf.Server.AppID)<<32 + connId
+	return uint64(conf.AppInfo.AppID)<<32 + connId
 }
 
 func getUserConnData(a n.AgentClient) (*connectionData, error) {

@@ -76,10 +76,10 @@ func disconnect(args []interface{}) {
 }
 
 func handleLogReq(args []interface{}) {
-	b := args[n.DATA_INDEX].(n.BaseMessage)
+	b := args[n.DataIndex].(n.BaseMessage)
 	m := (b.MyMessage).(*logger.LogReq)
-	//m := args[n.DATA_INDEX].(*logger.LogReq)
-	a := args[n.AGENT_INDEX].(n.AgentClient)
+	//m := args[n.DataIndex].(*logger.LogReq)
+	a := args[n.AgentIndex].(n.AgentClient)
 
 	//连接存在判断
 	if _, ok := appConnData[a]; !ok {

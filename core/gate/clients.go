@@ -21,24 +21,21 @@ type agentClient struct {
 }
 
 func (a *agentClient) Run() {
-
 	for {
 		bm, msgData, err := a.conn.ReadMsg()
 		if err != nil {
 			log.Warning("agentClient", "异常,网关读取消息失败,id=%v,err=%v", a.id, err)
 			break
 		}
-		if Processor == nil {
+		if processor == nil {
 			log.Error("agentClient", "异常,解析器为nil断开连接,cmd=%v", &bm.Cmd)
 			break
 		}
-
 		if bm.Cmd.MainCmdID == uint16(n.CMDConfig) && bm.Cmd.SubCmdID == uint16(config.CMDID_Config_IDApolloCfgRsp) {
 			apollo.ProcessReq(&bm.Cmd, msgData)
 			continue
 		}
-
-		if conf.AppType != n.AppCenter && bm.Cmd.MainCmdID == uint16(n.CMDCenter) {
+		if conf.AppInfo.AppType != n.AppCenter && bm.Cmd.MainCmdID == uint16(n.CMDCenter) {
 			if bm.Cmd.SubCmdID == uint16(center.CMDID_Center_IDAppRegReq) {
 				var m center.RegisterAppReq
 				_ = proto.Unmarshal(msgData, &m)
@@ -47,13 +44,12 @@ func (a *agentClient) Run() {
 			} else if bm.Cmd.SubCmdID == uint16(center.CMDID_Center_IDPulseNotify) {
 
 			}
-
 			continue
 		}
 
 		unmarshalCmd := bm.Cmd
 		var cmd, msg, dataReq interface{}
-		if bm.Cmd.MainCmdID == uint16(n.CMDGate) && bm.Cmd.SubCmdID == uint16(gate.CMDID_Gate_IDTransferDataReq) && conf.AppType != n.AppGate {
+		if bm.Cmd.MainCmdID == uint16(n.CMDGate) && bm.Cmd.SubCmdID == uint16(gate.CMDID_Gate_IDTransferDataReq) && conf.AppInfo.AppType != n.AppGate {
 			var m gate.TransferDataReq
 			_ = proto.Unmarshal(msgData, &m)
 			unmarshalCmd = n.TCPCommand{MainCmdID: uint16(m.GetDataCmdKind()), SubCmdID: uint16(m.GetDataCmdSubid())}
@@ -61,14 +57,12 @@ func (a *agentClient) Run() {
 			dataReq = &m
 		}
 
-		cmd, msg, err = Processor.Unmarshal(unmarshalCmd.MainCmdID, unmarshalCmd.SubCmdID, msgData)
+		cmd, msg, err = processor.Unmarshal(unmarshalCmd.MainCmdID, unmarshalCmd.SubCmdID, msgData)
 		if err != nil {
 			log.Error("agentClient", "unmarshal message,headCmd=%v,error: %v", bm.Cmd, err)
 			continue
 		}
-
-		baseMsg := n.BaseMessage{MyMessage: msg, TraceId: bm.TraceId}
-		err = Processor.Route(baseMsg, a, cmd, dataReq)
+		err = processor.Route(n.BaseMessage{MyMessage: msg, TraceId: bm.TraceId}, a, cmd, dataReq)
 		if err != nil {
 			log.Error("agentClient", "client agentClient route message error: %v,cmd=%v", err, cmd)
 			continue
@@ -77,8 +71,8 @@ func (a *agentClient) Run() {
 }
 
 func (a *agentClient) OnClose() {
-	if AgentChanRPC != nil {
-		err := AgentChanRPC.Call0(Disconnect, a, a.id)
+	if agentChanRPC != nil {
+		err := agentChanRPC.Call0(Disconnect, a, a.id)
 		if err != nil {
 			log.Error("agentClient", "chanrpc error: %v", err)
 		}

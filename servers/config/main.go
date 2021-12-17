@@ -7,5 +7,5 @@ import (
 )
 
 func main() {
-	core.Start()
+	core.Start("config")
 }

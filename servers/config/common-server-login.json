@@ -1,1 +1,11 @@
-{"appId":"common-server","cluster":"default","namespaceName":"login","releaseKey":"20211122134543-11cc8ee6517284d7","configurations":{"LogScreenPrint":"1","title":"登录服务","日志服务器地址":"127.0.0.1:20001"}}
+{
+    "appId": "common-server",
+    "cluster": "default",
+    "namespaceName": "login",
+    "releaseKey": "20211122134543-11cc8ee6517284d7",
+    "configurations": {
+        "LogScreenPrint": "1",
+        "title": "登录服务",
+        "日志服务器地址": "127.0.0.1:20001"
+    }
+}

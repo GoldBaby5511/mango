@@ -91,7 +91,6 @@ func (client *TCPClient) init() {
 	// msg parser
 	msgParser := NewMsgParser()
 	msgParser.SetMsgLen(client.LenMsgLen, client.MinMsgLen, client.MaxMsgLen)
-	msgParser.SetByteOrder(client.LittleEndian)
 	client.msgParser = msgParser
 }
 

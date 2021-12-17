@@ -48,7 +48,7 @@ func newServerItem(info n.BaseAgentInfo, autoReconnect bool, pendingWriteNum int
 
 		if n.AppConfig == info.AppType {
 			apollo.SetNetAgent(a)
-			apollo.RegisterConfig("", conf.AppType, conf.AppID, nil)
+			apollo.RegisterConfig("", conf.AppInfo.AppType, conf.AppInfo.AppID, nil)
 		}
 
 		mxServers.Lock()
@@ -90,7 +90,7 @@ func (a *agentServer) Run() {
 				mxServers.Lock()
 				_, ok := servers[uint64(m.GetAppType())<<32|uint64(m.GetAppId())]
 				mxServers.Unlock()
-				if !(conf.AppType == m.GetAppType() && conf.AppID == m.GetAppId()) && !ok {
+				if !(conf.AppInfo.AppType == m.GetAppType() && conf.AppInfo.AppID == m.GetAppId()) && !ok {
 					if m.GetAppAddress() != "" {
 						info := n.BaseAgentInfo{AgentType: n.CommonServer, AppName: m.GetAppName(), AppType: m.GetAppType(), AppID: m.GetAppId(), ListenOnAddress: m.GetAppAddress()}
 						newServerItem(info, false, 0)
@@ -100,7 +100,7 @@ func (a *agentServer) Run() {
 					}
 				}
 
-				if conf.AppType == n.AppConfig {
+				if conf.AppInfo.AppType == n.AppConfig {
 					mxServers.Lock()
 					if _, ok := servers[uint64(n.AppCenter)<<32|uint64(0)]; ok {
 						servers[uint64(n.AppCenter)<<32|uint64(0)].info.AppID = m.GetCenterId()
@@ -110,8 +110,8 @@ func (a *agentServer) Run() {
 			} else {
 				log.Warning("agentServer", "注册失败,RouterId=%v,原因=%v", m.GetCenterId(), m.GetReregToken())
 			}
-			if AgentChanRPC != nil {
-				AgentChanRPC.Call0(CenterRegResult, m.GetRegResult(), m.GetCenterId())
+			if agentChanRPC != nil {
+				agentChanRPC.Call0(CenterRegResult, m.GetRegResult(), m.GetCenterId())
 			}
 		case uint16(center.CMDID_Center_IDAppState): //app状态改变
 			var m center.AppStateNotify
