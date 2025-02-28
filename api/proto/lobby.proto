@@ -13,6 +13,7 @@ enum CMDLobby {
 	IDLogicRegRsp 					= 6;		//逻辑注册
 	IDQueryUserInfoReq 				= 7;		//查询用户
 	IDQueryUserInfoRsp 				= 8;		//查询用户
+	IDSyncUserStatus 				= 9;		//状态同步
 }
 
 //登录请求
@@ -87,19 +88,24 @@ message LogicRegReq{
 
 //
 message LogicRegRsp{
-	types.ErrorInfo		err_info = 99;
+	types.ErrorInfo					err_info = 99;
 }
 
 //查询用户
 message QueryUserInfoReq{
-	uint64   			user_id 		= 1;        //用户ID
-	uint32				query_type		= 2;		//操作类型 0进房查询
-	uint64 				room_conn_id	= 19; 		//所在房间
+	uint64   						user_id 		= 1;        			//用户ID
+	uint32							query_type		= 2;					//操作类型 0进房查询
+	uint64 							room_conn_id	= 19; 					//所在房间
 }
 
 //查询用户
 message QueryUserInfoRsp{
-	types.BaseUserInfo	user_info 	= 1;		//用户信息
-	uint32				query_type	= 2;		//操作类型 0进房查询
-	types.ErrorInfo		err_info 	= 99;
+	types.BaseUserInfo				user_info 	= 1;						//用户信息
+	uint32							query_type	= 2;						//操作类型 0进房查询
+	types.ErrorInfo					err_info 	= 99;
+}
+
+//状态同步
+message SyncUserStatus{
+	types.BaseUserInfo				user_info = 1;         					//用户信息
 }

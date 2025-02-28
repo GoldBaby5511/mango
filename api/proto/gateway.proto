@@ -1,6 +1,6 @@
 syntax = "proto3";
 package bs.gateway;
-option go_package ="/gateway";
+option go_package ="mango/api/gateway";
 
 enum CMDGateway{
 	IDNone						= 0;
@@ -11,6 +11,7 @@ enum CMDGateway{
 	IDAuthInfo					= 5;        	//认证信息
 	IDHelloReq					= 6;        	//握手请求
 	IDHelloRsp					= 7;        	//握手回复
+	IDNetworkDisconnected		= 8;        	//网络断开
 }
 
 //测速请求
@@ -100,4 +101,9 @@ message HelloRsp{
 
    //如果Req的guid为空，则这里为其创建一个guid
    string guid = 7;
+}
+
+//网络断开
+message NetworkDisconnected{
+	uint64   						user_id = 1;        			//用户ID
 }

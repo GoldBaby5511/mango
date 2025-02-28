@@ -16,47 +16,53 @@ enum CMDRoom {
 	IDConfigServer			= 12;			//房间配置
 	IDUserEnter				= 13;			//用户进入
 	IDTableInfo				= 14;			//桌子信息
-	IDTableStatus			= 15;			//桌子信息
+	IDTableStatus			= 15;			//桌子状态
 	IDLogonFinish			= 16;			//登录完成
 	IDGameOption			= 17;			//游戏配置
 	IDGameStatus			= 18;			//游戏环境
 	IDGameScene				= 19;			//游戏场景
 	IDUserReady				= 20;			//用户准备
 	IDSystemMessage			= 21;			//系统消息
+	IDWaitDistribute		= 22;			//等待分配
+	IDUserScore				= 23;			//用户分数
 }
 
 message EnterReq{
 }
 
 message EnterRsp{
-	types.ErrorInfo				err_info = 99;
+	types.ErrorInfo					err_info = 99;
 }
 
+//请求座位
 message GetChairReq{
-	uint32			table_id = 1;
-	uint32			chair_id = 2;
-	string			password = 3;
+	uint32							table_id = 1;
+	uint32							chair_id = 2;
+	string							password = 3;
 }
 
+//请求座位
 message GetChairRsp{
-	uint32						app_id = 1;
-	types.ErrorInfo				err_info = 99;
+	uint32							app_id = 1;
+	types.ErrorInfo					err_info = 99;
 }
 
 message ExitReq{
+	bool							force_leave = 1;						//强行离开
 }
 
 message ExitRsp{
-	types.ErrorInfo			err_info = 99;
+	types.ErrorInfo					err_info = 99;
 }
 
+//用户状态
 message UserStatus{
-	types.BaseUserInfo		user_info = 1;         	//用户信息
+	types.BaseUserInfo				user_info = 1;         					//用户信息
 }
 
 //请求失败
 message RequestFailure{
-	types.ErrorInfo			err_info = 99;
+	types.ErrorInfo					err_info = 99;
 }
 
 //房间配置
@@ -117,6 +123,8 @@ message UserEnter{
 
 	//代理信息
 	uint32							agent_id = 30;							//代理 I D
+	
+	string							nick_name = 31;							//用户昵称
 }
 
 //桌子信息
@@ -154,4 +162,10 @@ message SystemMessage{
 	uint32							type = 1;								//消息类型
 	uint32							length = 2;								//消息长度
 	string							info = 3;								//消息内容
+};
+
+//用户分数
+message UserScore{
+	uint32							user_id = 1;							//用户标识
+	types.UserScore					user_score = 2;							//积分信息
 };

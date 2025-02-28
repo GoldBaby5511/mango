@@ -9,6 +9,8 @@ enum CMDProperty {
 	IDQueryPropertyRsp			= 2;			//查询财富
 	IDModifyPropertyReq			= 3;			//修改财富
 	IDModifyPropertyRsp			= 4;			//修改财富
+	IDWriteGameScoreReq			= 5;			//修改积分
+	IDWriteGameScoreRsp			= 6;			//修改积分
 };
 
 message QueryPropertyReq{
@@ -20,7 +22,7 @@ message QueryPropertyRsp{
 	uint64   						user_id 					= 1;         	//用户ID
 	uint64 							gate_conn_id 				= 2; 			//所在gate
 	repeated types.PropItem 		user_props 					= 3;			//用户道具
-	types.ErrorInfo					err_info 					= 99;
+	types.ErrorInfo					err_info 					= 99;			//错误信息
 }
 
 message ModifyPropertyReq{
@@ -34,4 +36,31 @@ message ModifyPropertyRsp{
 	int32   						op_type = 2;         	//操作类型
 	repeated types.PropItem 		user_props = 3;			//用户道具
 	types.ErrorInfo					err_info = 99;
+}
+
+//游戏积分
+message WriteGameScoreReq{
+	//用户信息
+	uint64							user_id = 1;							//用户标识
+	uint32							client_addr = 2;						//连接地址
+
+	//用户信息
+	uint32							db_quest_id = 3;						//请求标识
+	uint32							inout_index = 4;						//进出索引
+
+	//附件信息
+	bool							task_forward = 5;						//任务跟进
+
+	//成绩变量
+	types.ScoreVariationInfo		variation_info = 6;						//提取信息
+
+	//比赛信息
+	uint32							match_id = 7;							//比赛标识
+	uint64							match_no = 8;							//比赛场次
+};
+
+//游戏积分
+message WriteGameScoreRsp{
+	uint64							user_id = 1;							//用户标识
+	types.ErrorInfo					err_info = 99;							//错误信息
 }

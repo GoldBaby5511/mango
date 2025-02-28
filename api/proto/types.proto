@@ -101,3 +101,49 @@ message TableStatus{
 	uint32						room_num = 4;							//房间号码
 	int32						cell_score = 5;							//单元积分
 }
+
+//用户积分
+message UserScore{
+	//积分信息
+	int64							score = 1;								//用户分数
+	int64							grade = 2;								//用户成绩
+	int64							insure = 3;								//用户银行
+	int64							ingot = 4;								//用户元宝
+	int64							red_revelopes = 5;						//用户红包
+	double							beans = 6;								//用户游戏豆
+
+	//输赢信息
+	uint32							win_count = 7;							//胜利盘数
+	uint32							lost_count = 8;							//失败盘数
+	uint32							draw_count = 9;							//和局盘数
+	uint32							flee_count = 10;						//逃跑盘数
+	int64							integral_count = 11;					//积分总数(当前房间)
+
+	//全局信息
+	uint32							experience = 12;						//用户经验
+	int64							love_liness = 13;						//用户魅力
+};
+
+//变更信息
+message ScoreVariationInfo{
+	//积分信息
+	int64							score = 1;								//用户分数
+	int64							ingot = 2;								//用户元宝
+	int64							red_revelopes = 3;						//用户红包
+	int64							grade = 4;								//用户成绩
+	int64							insure = 5;								//用户银行
+	int64							revenue = 6;							//游戏税收	
+	int64							custom_revenue = 7;						//游戏税收
+
+	//游戏信息
+	uint32							win_count = 8;							//胜利盘数
+	uint32							lost_count = 9;							//失败盘数
+	uint32							draw_count = 10;						//和局盘数
+	uint32							flee_count = 11;						//逃跑盘数
+	int64							integral_count = 12;					//积分总数(当前房间)
+	uint32							play_time_count = 13;					//游戏时长
+
+	//全局信息
+	uint32							experience = 14;						//用户经验
+	int32							love_liness = 15;						//用户魅力
+};
