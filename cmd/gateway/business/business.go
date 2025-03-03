@@ -4,7 +4,6 @@ import (
 	"errors"
 	"github.com/golang/protobuf/proto"
 	"mango/api/gateway"
-	"mango/api/lobby"
 	"mango/pkg/conf"
 	"mango/pkg/conf/apollo"
 	g "mango/pkg/gate"
@@ -57,12 +56,15 @@ func connectSuccess(args []interface{}) {
 
 func disconnect(args []interface{}) {
 	if a, err := getUserConnData(args[g.AgentIndex].(n.AgentClient)); err == nil {
-		log.Debug("module", "走了老弟,userId=%v,connId=%v,当前连接数=%d,info=%v", a.userId, a.connId, len(userConnData), a.a.AgentInfo())
+		log.Debug("module", "走了老弟,userId=%v,connId=%v,当前连接数=%d,info=%v", a.userId, a.connId, len(userConnData), util.PrintStructFields(a.a.AgentInfo()))
 
-		logout := lobby.LogoutReq{
-			UserId: a.userId,
+		if a.a.AgentInfo().AgentType == n.NormalUser && a.userId != 0 {
+			//通知lobby
+			g.SendData2App(n.AppLobby, n.Send2All, n.AppGate, uint32(gateway.CMDGateway_IDNetworkDisconnected),
+				&gateway.NetworkDisconnected{
+					UserId: a.userId,
+				})
 		}
-		g.SendData2App(n.AppLobby, n.Send2AnyOne, n.AppLobby, uint32(lobby.CMDLobby_IDLogoutReq), &logout)
 
 		delete(userConnData, a.connId)
 	} else {

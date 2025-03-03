@@ -18,15 +18,41 @@ var (
 )
 
 func init() {
+	g.MsgRegister(&gateway.NetworkDisconnected{}, n.AppGate, uint16(gateway.CMDGateway_IDNetworkDisconnected), handleGatewayNetworkDisconnected)
 	g.MsgRegister(&lobby.LoginReq{}, n.AppLobby, uint16(lobby.CMDLobby_IDLoginReq), handleLoginReq)
 	g.MsgRegister(&lobby.LogoutReq{}, n.AppLobby, uint16(lobby.CMDLobby_IDLogoutReq), handleLogoutReq)
 	g.MsgRegister(&lobby.QueryUserInfoReq{}, n.AppLobby, uint16(lobby.CMDLobby_IDQueryUserInfoReq), handleQueryUserInfoReq)
+	g.MsgRegister(&lobby.SyncUserStatus{}, n.AppLobby, uint16(lobby.CMDLobby_IDSyncUserStatus), handleSyncUserStatus)
 	g.MsgRegister(&property.QueryPropertyRsp{}, n.AppProperty, uint16(property.CMDProperty_IDQueryPropertyRsp), handleQueryPropertyRsp)
 	g.CallBackRegister(g.CbAppControlNotify, appControlNotify)
 }
 
 func appControlNotify(args []interface{}) {
 
+}
+
+// 网络断开
+func handleGatewayNetworkDisconnected(args []interface{}) {
+	b := args[n.DataIndex].(n.BaseMessage)
+	m := (b.MyMessage).(*gateway.NetworkDisconnected)
+
+	//log.Debug("", "网络断开,userId=%v", m.GetUserId())
+
+	if u, ok := userList[m.GetUserId()]; ok {
+		log.Debug("", "网络断开,user=%v", u)
+		if u.GetRoomConnId() != 0 {
+			g.SendData2App(n.AppRoom, util.GetLUint32FromUint64(u.GetRoomConnId()), n.AppLobby, uint32(lobby.CMDLobby_IDSyncUserStatus),
+				&lobby.SyncUserStatus{
+					UserInfo: &types.BaseUserInfo{
+						UserId: m.GetUserId(),
+						Status: types.BaseUserInfo_offline,
+					},
+				})
+		}
+		//delete(userList, m.GetUserId())
+	} else {
+		log.Warning("", "网络断开,没找到用户,userId=%v", m.GetUserId())
+	}
 }
 
 func handleLoginReq(args []interface{}) {
@@ -71,7 +97,23 @@ func handleLoginReq(args []interface{}) {
 func handleLogoutReq(args []interface{}) {
 	b := args[n.DataIndex].(n.BaseMessage)
 	m := (b.MyMessage).(*lobby.LogoutReq)
-	log.Debug("注销", "注销请求,userId=%v", m.GetUserId())
+
+	log.Debug("注销", "注销请求,userId=%v,%v", m.GetUserId(), util.PrintStructFields(b.AgentInfo))
+
+	//if u, ok := userList[m.GetUserId()]; ok {
+	//	log.Debug("", "收到注销,userId=%v,gateConnId=%v", m.GetUserId(), u.GetGateConnId())
+	//	if u.GetRoomConnId() != 0 {
+	//		g.SendData2App(n.AppRoom, util.GetLUint32FromUint64(u.GetRoomConnId()), n.AppGate, uint32(lobby.CMDLobby_IDSyncUserStatus), &lobby.SyncUserStatus{
+	//			UserInfo: &types.BaseUserInfo{
+	//				UserId: m.GetUserId(),
+	//				Status: types.BaseUserInfo_offline,
+	//			},
+	//		})
+	//	}
+	//	//delete(userList, m.GetUserId())
+	//} else {
+	//	log.Warning("", "收到注销,userId=%v,gateConnId=%v", m.GetUserId(), m.GetGateConnId())
+	//}
 }
 
 func handleQueryUserInfoReq(args []interface{}) {
@@ -113,6 +155,13 @@ func handleQueryPropertyRsp(args []interface{}) {
 		respondUserLogin(userId, connId, int32(lobby.LoginRsp_SERVERERROR), fmt.Sprintf("财富回来人没了?uId=%v", m.GetUserId()))
 		return
 	}
+
+	if m.GetErrInfo().GetCode() != types.ErrorInfo_success {
+		log.Warning("", "财富查询失败,uId=%v,cId=%v,code=%v,Info=%v", userId, connId, m.GetErrInfo().GetCode(), m.GetErrInfo().GetInfo())
+		respondUserLogin(userId, connId, int32(lobby.LoginRsp_SERVERERROR), fmt.Sprintf("财富查询失败,uId=%v", m.GetUserId()))
+		return
+	}
+
 	userList[m.GetUserId()].Props = append(userList[m.GetUserId()].Props, m.GetUserProps()...)
 
 	log.Debug("", "财富查询,userId=%v,len=%v,gateConnId=%d", m.GetUserId(), len(m.GetUserProps()), userList[m.GetUserId()].GetGateConnId())
@@ -128,6 +177,34 @@ func handleQueryPropertyRsp(args []interface{}) {
 	respondUserLogin(userId, connId, int32(lobby.LoginRsp_SUCCESS), "登录成功")
 }
 
+// 状态同步
+func handleSyncUserStatus(args []interface{}) {
+	b := args[n.DataIndex].(n.BaseMessage)
+	m := (b.MyMessage).(*lobby.SyncUserStatus)
+	srcApp := b.AgentInfo
+
+	user := m.GetUserInfo()
+	if _, ok := userList[user.GetUserId()]; !ok {
+		log.Warning("", "状态同步人没有?,uId=%v,cId=%v,Status=%v", user.GetUserId(), user.GetGateConnId(), user.GetStatus())
+		return
+	}
+
+	log.Debug("", "状态同步,uid=%v,Status=%v,TableId=%v,SeatId=%v,原状态,Status=%v,TableId=%v,SeatId=%v",
+		user.GetUserId(), user.GetStatus(), user.GetTableId(), user.GetSeatId(),
+		userList[user.GetUserId()].GetStatus(), userList[user.GetUserId()].GetTableId(), userList[user.GetUserId()].GetSeatId())
+
+	userList[user.GetUserId()].TableId = user.TableId
+	userList[user.GetUserId()].SeatId = user.SeatId
+	userList[user.GetUserId()].Status = user.Status
+	userList[user.GetUserId()].RoomConnId = util.MakeUint64FromUint32(srcApp.AppType, srcApp.AppId)
+
+	//退出房间
+	if user.GetStatus() == types.BaseUserInfo_none {
+		userList[user.GetUserId()].RoomConnId = 0
+	}
+}
+
+// 登录回复
 func respondUserLogin(userId, connId uint64, errCode int32, errInfo string) {
 
 	log.Debug("", "登录回复,uId=%v,cId=%v,code=%v,errInfo=%v", userId, connId, errCode, errInfo)

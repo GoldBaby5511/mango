@@ -23,14 +23,15 @@ const (
 type CMDGateway int32
 
 const (
-	CMDGateway_IDNone            CMDGateway = 0
-	CMDGateway_IDPulseReq        CMDGateway = 1 //测速请求
-	CMDGateway_IDPulseRsp        CMDGateway = 2 //测速回复
-	CMDGateway_IDTransferDataReq CMDGateway = 3 //数据转发请求
-	CMDGateway_IDTransferDataRsp CMDGateway = 4 //数据转发回复
-	CMDGateway_IDAuthInfo        CMDGateway = 5 //认证信息
-	CMDGateway_IDHelloReq        CMDGateway = 6 //握手请求
-	CMDGateway_IDHelloRsp        CMDGateway = 7 //握手回复
+	CMDGateway_IDNone                CMDGateway = 0
+	CMDGateway_IDPulseReq            CMDGateway = 1 //测速请求
+	CMDGateway_IDPulseRsp            CMDGateway = 2 //测速回复
+	CMDGateway_IDTransferDataReq     CMDGateway = 3 //数据转发请求
+	CMDGateway_IDTransferDataRsp     CMDGateway = 4 //数据转发回复
+	CMDGateway_IDAuthInfo            CMDGateway = 5 //认证信息
+	CMDGateway_IDHelloReq            CMDGateway = 6 //握手请求
+	CMDGateway_IDHelloRsp            CMDGateway = 7 //握手回复
+	CMDGateway_IDNetworkDisconnected CMDGateway = 8 //网络断开
 )
 
 // Enum value maps for CMDGateway.
@@ -44,16 +45,18 @@ var (
 		5: "IDAuthInfo",
 		6: "IDHelloReq",
 		7: "IDHelloRsp",
+		8: "IDNetworkDisconnected",
 	}
 	CMDGateway_value = map[string]int32{
-		"IDNone":            0,
-		"IDPulseReq":        1,
-		"IDPulseRsp":        2,
-		"IDTransferDataReq": 3,
-		"IDTransferDataRsp": 4,
-		"IDAuthInfo":        5,
-		"IDHelloReq":        6,
-		"IDHelloRsp":        7,
+		"IDNone":                0,
+		"IDPulseReq":            1,
+		"IDPulseRsp":            2,
+		"IDTransferDataReq":     3,
+		"IDTransferDataRsp":     4,
+		"IDAuthInfo":            5,
+		"IDHelloReq":            6,
+		"IDHelloRsp":            7,
+		"IDNetworkDisconnected": 8,
 	}
 )
 
@@ -757,6 +760,52 @@ func (x *HelloRsp) GetGuid() string {
 	return ""
 }
 
+// 网络断开
+type NetworkDisconnected struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	UserId uint64 `protobuf:"varint,1,opt,name=user_id,json=userId,proto3" json:"user_id,omitempty"` //用户ID
+}
+
+func (x *NetworkDisconnected) Reset() {
+	*x = NetworkDisconnected{}
+	mi := &file_gateway_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NetworkDisconnected) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NetworkDisconnected) ProtoMessage() {}
+
+func (x *NetworkDisconnected) ProtoReflect() protoreflect.Message {
+	mi := &file_gateway_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NetworkDisconnected.ProtoReflect.Descriptor instead.
+func (*NetworkDisconnected) Descriptor() ([]byte, []int) {
+	return file_gateway_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *NetworkDisconnected) GetUserId() uint64 {
+	if x != nil {
+		return x.UserId
+	}
+	return 0
+}
+
 var File_gateway_proto protoreflect.FileDescriptor
 
 var file_gateway_proto_rawDesc = []byte{
@@ -846,7 +895,10 @@ var file_gateway_proto_rawDesc = []byte{
 	0x4e, 0x10, 0x00, 0x12, 0x0f, 0x0a, 0x0b, 0x45, 0x6e, 0x63, 0x72, 0x79, 0x70, 0x74, 0x49, 0x6e,
 	0x66, 0x6f, 0x10, 0x01, 0x12, 0x11, 0x0a, 0x0d, 0x41, 0x64, 0x76, 0x69, 0x63, 0x65, 0x4e, 0x65,
 	0x77, 0x47, 0x61, 0x74, 0x65, 0x10, 0x02, 0x12, 0x0e, 0x0a, 0x0a, 0x4c, 0x6f, 0x67, 0x69, 0x6e,
-	0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x10, 0x04, 0x2a, 0x96, 0x01, 0x0a, 0x0a, 0x43, 0x4d, 0x44, 0x47,
+	0x54, 0x6f, 0x6b, 0x65, 0x6e, 0x10, 0x04, 0x22, 0x2e, 0x0a, 0x13, 0x4e, 0x65, 0x74, 0x77, 0x6f,
+	0x72, 0x6b, 0x44, 0x69, 0x73, 0x63, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x65, 0x64, 0x12, 0x17,
+	0x0a, 0x07, 0x75, 0x73, 0x65, 0x72, 0x5f, 0x69, 0x64, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04, 0x52,
+	0x06, 0x75, 0x73, 0x65, 0x72, 0x49, 0x64, 0x2a, 0xb1, 0x01, 0x0a, 0x0a, 0x43, 0x4d, 0x44, 0x47,
 	0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x12, 0x0a, 0x0a, 0x06, 0x49, 0x44, 0x4e, 0x6f, 0x6e, 0x65,
 	0x10, 0x00, 0x12, 0x0e, 0x0a, 0x0a, 0x49, 0x44, 0x50, 0x75, 0x6c, 0x73, 0x65, 0x52, 0x65, 0x71,
 	0x10, 0x01, 0x12, 0x0e, 0x0a, 0x0a, 0x49, 0x44, 0x50, 0x75, 0x6c, 0x73, 0x65, 0x52, 0x73, 0x70,
@@ -856,8 +908,10 @@ var file_gateway_proto_rawDesc = []byte{
 	0x12, 0x0e, 0x0a, 0x0a, 0x49, 0x44, 0x41, 0x75, 0x74, 0x68, 0x49, 0x6e, 0x66, 0x6f, 0x10, 0x05,
 	0x12, 0x0e, 0x0a, 0x0a, 0x49, 0x44, 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x52, 0x65, 0x71, 0x10, 0x06,
 	0x12, 0x0e, 0x0a, 0x0a, 0x49, 0x44, 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x52, 0x73, 0x70, 0x10, 0x07,
-	0x42, 0x0a, 0x5a, 0x08, 0x2f, 0x67, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79, 0x62, 0x06, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x33,
+	0x12, 0x19, 0x0a, 0x15, 0x49, 0x44, 0x4e, 0x65, 0x74, 0x77, 0x6f, 0x72, 0x6b, 0x44, 0x69, 0x73,
+	0x63, 0x6f, 0x6e, 0x6e, 0x65, 0x63, 0x74, 0x65, 0x64, 0x10, 0x08, 0x42, 0x13, 0x5a, 0x11, 0x6d,
+	0x61, 0x6e, 0x67, 0x6f, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x67, 0x61, 0x74, 0x65, 0x77, 0x61, 0x79,
+	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -873,18 +927,19 @@ func file_gateway_proto_rawDescGZIP() []byte {
 }
 
 var file_gateway_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_gateway_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_gateway_proto_goTypes = []any{
-	(CMDGateway)(0),         // 0: bs.gateway.CMDGateway
-	(AuthInfo_OpType)(0),    // 1: bs.gateway.AuthInfo.OpType
-	(HelloRsp_RspFlag)(0),   // 2: bs.gateway.HelloRsp.RspFlag
-	(*PulseReq)(nil),        // 3: bs.gateway.PulseReq
-	(*PulseRsp)(nil),        // 4: bs.gateway.PulseRsp
-	(*TransferDataReq)(nil), // 5: bs.gateway.TransferDataReq
-	(*TransferDataRsp)(nil), // 6: bs.gateway.TransferDataRsp
-	(*AuthInfo)(nil),        // 7: bs.gateway.AuthInfo
-	(*HelloReq)(nil),        // 8: bs.gateway.HelloReq
-	(*HelloRsp)(nil),        // 9: bs.gateway.HelloRsp
+	(CMDGateway)(0),             // 0: bs.gateway.CMDGateway
+	(AuthInfo_OpType)(0),        // 1: bs.gateway.AuthInfo.OpType
+	(HelloRsp_RspFlag)(0),       // 2: bs.gateway.HelloRsp.RspFlag
+	(*PulseReq)(nil),            // 3: bs.gateway.PulseReq
+	(*PulseRsp)(nil),            // 4: bs.gateway.PulseRsp
+	(*TransferDataReq)(nil),     // 5: bs.gateway.TransferDataReq
+	(*TransferDataRsp)(nil),     // 6: bs.gateway.TransferDataRsp
+	(*AuthInfo)(nil),            // 7: bs.gateway.AuthInfo
+	(*HelloReq)(nil),            // 8: bs.gateway.HelloReq
+	(*HelloRsp)(nil),            // 9: bs.gateway.HelloRsp
+	(*NetworkDisconnected)(nil), // 10: bs.gateway.NetworkDisconnected
 }
 var file_gateway_proto_depIdxs = []int32{
 	1, // 0: bs.gateway.AuthInfo.op_type:type_name -> bs.gateway.AuthInfo.OpType
@@ -906,7 +961,7 @@ func file_gateway_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_gateway_proto_rawDesc,
 			NumEnums:      3,
-			NumMessages:   7,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
