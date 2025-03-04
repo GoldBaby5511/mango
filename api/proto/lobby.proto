@@ -33,7 +33,7 @@ message LoginReq{
 	string 			system_version = 7;		//操作系统版本号
 	uint32 			channel_id = 8;			//主渠道id
 	uint32 			site_id = 9;			//子渠道id
-	string 			device_id = 10;			//设备唯一码
+	string			machine_id = 10;			//机器序列
 	int32 			user_type = 11;			//用户类型(客户端禁止使用)
 }
 

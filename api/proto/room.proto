@@ -28,6 +28,17 @@ enum CMDRoom {
 }
 
 message EnterReq{
+	//版本信息
+	uint32							plaza_version = 1;						//广场版本
+	uint32							frame_version = 2;						//框架版本
+	uint32							process_version = 3;					//进程版本
+
+	//登录信息
+	uint32							user_id = 4;							//用户 I D
+	string							password = 5;							//登录密码
+	string                          server_passwd = 6;       				//房间密码
+	string							machine_id = 7;							//机器序列
+	uint32							kind_id = 8;							//类型索引
 }
 
 message EnterRsp{

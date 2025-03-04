@@ -94,11 +94,12 @@ func handleLoginReq(args []interface{}) {
 	g.SendData2App(n.AppProperty, n.Send2AnyOne, n.AppProperty, uint32(property.CMDProperty_IDQueryPropertyReq), &req)
 }
 
+// 注销登录
 func handleLogoutReq(args []interface{}) {
 	b := args[n.DataIndex].(n.BaseMessage)
 	m := (b.MyMessage).(*lobby.LogoutReq)
 
-	log.Debug("注销", "注销请求,userId=%v,%v", m.GetUserId(), util.PrintStructFields(b.AgentInfo))
+	log.Debug("注销", "注销登录,userId=%v,%v", m.GetUserId(), util.PrintStructFields(b.AgentInfo))
 
 	//if u, ok := userList[m.GetUserId()]; ok {
 	//	log.Debug("", "收到注销,userId=%v,gateConnId=%v", m.GetUserId(), u.GetGateConnId())
@@ -162,9 +163,28 @@ func handleQueryPropertyRsp(args []interface{}) {
 		return
 	}
 
-	userList[m.GetUserId()].Props = append(userList[m.GetUserId()].Props, m.GetUserProps()...)
+	//更新财富
+	for _, p := range m.GetUserProps() {
+		found := false
+		for _, up := range userList[userId].Props {
+			if p.GetId() == up.GetId() {
+				found = true
+				up.Count = p.GetCount()
+			}
+		}
+		if found == false {
+			userList[userId].Props = append(userList[m.GetUserId()].Props, p)
+		}
+	}
 
-	log.Debug("", "财富查询,userId=%v,len=%v,gateConnId=%d", m.GetUserId(), len(m.GetUserProps()), userList[m.GetUserId()].GetGateConnId())
+	//更新状态
+	if userList[userId].GetStatus() == types.BaseUserInfo_none {
+		userList[userId].Status = types.BaseUserInfo_free
+	}
+
+	//userList[m.GetUserId()].Props = append(userList[m.GetUserId()].Props, m.GetUserProps()...)
+
+	log.Debug("", "财富查询,userId=%v,len=%v,gateConnId=%d,Status=%v", m.GetUserId(), len(m.GetUserProps()), userList[m.GetUserId()].GetGateConnId(), userList[userId].GetStatus())
 
 	authRsp := gateway.AuthInfo{
 		UserId:     m.GetUserId(),
