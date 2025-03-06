@@ -17,8 +17,27 @@ var (
 func init() {
 	g.MsgRegister(&list.RoomRegisterReq{}, n.AppList, uint16(list.CMDList_IDRoomRegisterReq), handleRoomRegisterReq)
 	g.MsgRegister(&list.RoomListReq{}, n.AppList, uint16(list.CMDList_IDRoomListReq), handleRoomListReq)
+	g.EventRegister(g.ConnectSuccess, connectSuccess)
+	g.EventRegister(g.Disconnect, disconnect)
 }
 
+func connectSuccess(args []interface{}) {
+
+}
+
+func disconnect(args []interface{}) {
+	a := args[g.AgentIndex].(n.AgentClient)
+
+	log.Debug("", "网络断开,AppType=%v,AppId=%v", a.AgentInfo().AppType, a.AgentInfo().AppId)
+
+	if a.AgentInfo().AppType == n.AppRoom {
+		regKey := util.MakeUint64FromUint32(a.AgentInfo().AppType, a.AgentInfo().AppId)
+		if _, ok := roomList[regKey]; ok {
+			log.Debug("", "网络断开,清除房间,room=%v", roomList[regKey])
+			delete(roomList, regKey)
+		}
+	}
+}
 func handleRoomRegisterReq(args []interface{}) {
 	b := args[n.DataIndex].(n.BaseMessage)
 	m := (b.MyMessage).(*list.RoomRegisterReq)
