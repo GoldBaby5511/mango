@@ -25,6 +25,27 @@ func init() {
 	g.MsgRegister(&lobby.SyncUserStatus{}, n.AppLobby, uint16(lobby.CMDLobby_IDSyncUserStatus), handleSyncUserStatus)
 	g.MsgRegister(&property.QueryPropertyRsp{}, n.AppProperty, uint16(property.CMDProperty_IDQueryPropertyRsp), handleQueryPropertyRsp)
 	g.CallBackRegister(g.CbAppControlNotify, appControlNotify)
+	g.EventRegister(g.ConnectSuccess, connectSuccess)
+	g.EventRegister(g.Disconnect, disconnect)
+}
+
+func connectSuccess(args []interface{}) {
+
+}
+
+func disconnect(args []interface{}) {
+	a := args[g.AgentIndex].(n.AgentClient)
+
+	log.Debug("", "网络断开,AppType=%v,AppId=%v", a.AgentInfo().AppType, a.AgentInfo().AppId)
+
+	if a.AgentInfo().AppType == n.AppRoom {
+		for _, u := range userList {
+			if u.GetRoomConnId() == util.MakeUint64FromUint32(a.AgentInfo().AppType, a.AgentInfo().AppId) {
+				log.Debug("", "网络断开,清除房间,user=%v", u)
+				u.RoomConnId = 0
+			}
+		}
+	}
 }
 
 func appControlNotify(args []interface{}) {
@@ -48,8 +69,9 @@ func handleGatewayNetworkDisconnected(args []interface{}) {
 						Status: types.BaseUserInfo_offline,
 					},
 				})
+		} else {
+			delete(userList, m.GetUserId())
 		}
-		//delete(userList, m.GetUserId())
 	} else {
 		log.Warning("", "网络断开,没找到用户,userId=%v", m.GetUserId())
 	}
