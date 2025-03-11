@@ -32,6 +32,7 @@ func init() {
 	g.MsgRegister(&gateway.TransferDataReq{}, n.AppGate, uint16(gateway.CMDGateway_IDTransferDataReq), handleTransferDataReq)
 	g.MsgRegister(&gateway.AuthInfo{}, n.AppGate, uint16(gateway.CMDGateway_IDAuthInfo), handleAuthInfo)
 	g.MsgRegister(&gateway.HelloReq{}, n.AppGate, uint16(gateway.CMDGateway_IDHelloReq), handleHelloReq)
+	g.MsgRegister(&gateway.ShutDownSocket{}, n.AppGate, uint16(gateway.CMDGateway_IDShutDownSocket), handleShutDownSocket)
 	g.EventRegister(g.ConnectSuccess, connectSuccess)
 	g.EventRegister(g.Disconnect, disconnect)
 
@@ -105,7 +106,7 @@ func handleTransferDataReq(args []interface{}) {
 		a, err := getUserAgent(m.GetGateConnId())
 		if err != nil {
 			log.Warning("消息转发", "未找到可能已下线,"+
-				"AttGateconnid=%v,connId=%v",
+				"Gateconnid=%v,connId=%v",
 				m.GetGateConnId(),
 				util.GetHUint32FromUint64(m.GetGateConnId()))
 			return
@@ -113,7 +114,6 @@ func handleTransferDataReq(args []interface{}) {
 		a.SendData(n.AppGate, uint32(gateway.CMDGateway_IDTransferDataReq), m)
 	} else {
 		//Client->App 消息
-		//m.Gateid = *proto.Uint32(conf.AppInfo.Id)
 		m.GateConnId = *proto.Uint64(util.MakeUint64FromUint32(connData.connId, conf.AppInfo.Id))
 		m.UserId = *proto.Uint64(connData.userId)
 		g.SendData2App(m.GetDestApptype(), m.GetDestAppid(), n.AppGate, uint32(gateway.CMDGateway_IDTransferDataReq), m)
@@ -157,6 +157,35 @@ func handleHelloReq(args []interface{}) {
 	a.SendData(n.AppGate, uint32(gateway.CMDGateway_IDHelloRsp), &rsp)
 }
 
+// 关闭网络
+func handleShutDownSocket(args []interface{}) {
+	b := args[n.DataIndex].(n.BaseMessage)
+	m := (b.MyMessage).(*gateway.ShutDownSocket)
+	//a := args[n.AgentIndex].(n.AgentClient)
+
+	connId := util.GetHUint32FromUint64(m.GetGateConnId())
+	a, err := getUserAgent(m.GetGateConnId())
+	if err != nil {
+		log.Warning("关闭网络", "关闭网络,未找到可能已下线,gateConnId=%v,connId=%v",
+			m.GetGateConnId(),
+			connId)
+		return
+	}
+
+	//清除绑定userid
+	if connData, ok := userConnData[connId]; ok {
+		if connData.a.AgentInfo().AgentType == n.NormalUser && connData.userId != 0 {
+			log.Debug("", "收到关闭网络消息,清除绑定userid,userId=%v,connId=%v,gateConnId=%v,%v", m.GetUserId(), connId, m.GetGateConnId(), util.PrintStructFields(a.AgentInfo()))
+			//清除绑定userid
+			connData.userId = 0
+		}
+	}
+
+	log.Debug("", "收到关闭网络消息,userId=%v,connId=%v,gateConnId=%v,%v", m.GetUserId(), connId, m.GetGateConnId(), util.PrintStructFields(a.AgentInfo()))
+
+	a.Close()
+}
+
 func getUserConnData(a n.AgentClient) (*connectionData, error) {
 	for _, v := range userConnData {
 		if v.a == a {
@@ -184,8 +213,16 @@ func checkConnectionAlive() {
 		}
 	}
 
+	//关闭连接
 	for _, c := range da {
 		log.Debug("心跳", "心跳超时断开,userId=%v,connId=%v,info=%v", c.userId, c.connId, c.a.AgentInfo())
+		if c.userId != 0 {
+			//通知lobby
+			g.SendData2App(n.AppLobby, n.Send2All, n.AppGate, uint32(gateway.CMDGateway_IDNetworkDisconnected),
+				&gateway.NetworkDisconnected{
+					UserId: c.userId,
+				})
+		}
 		c.a.Close()
 	}
 }
