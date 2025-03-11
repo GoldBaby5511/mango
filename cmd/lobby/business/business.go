@@ -57,8 +57,6 @@ func handleGatewayNetworkDisconnected(args []interface{}) {
 	b := args[n.DataIndex].(n.BaseMessage)
 	m := (b.MyMessage).(*gateway.NetworkDisconnected)
 
-	//log.Debug("", "网络断开,userId=%v", m.GetUserId())
-
 	if u, ok := userList[m.GetUserId()]; ok {
 		log.Debug("", "网络断开,user=%v", u)
 		if u.GetRoomConnId() != 0 {

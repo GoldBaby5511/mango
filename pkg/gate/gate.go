@@ -471,8 +471,8 @@ func sendData(bm n.BaseMessage, destAppType, destAppid uint32) error {
 			}
 		}
 
-		log.Warning("转发", "消息发送失败,appCount=%v,destAppType=%v,destAppid=%v,bm.Cmd=%v",
-			destTypeAppCount(destAppType), destAppType, destAppid, bm.Cmd)
+		log.Warning("转发", "消息发送失败,appCount=%v,destAppType=%v,destAppid=%v,%v",
+			destTypeAppCount(destAppType), destAppType, destAppid, util.PrintStructFields(bm.Cmd))
 
 		return fmt.Errorf("目标没找到,destAppType=%d,destAppid=%d", destAppType, destAppid)
 	}
