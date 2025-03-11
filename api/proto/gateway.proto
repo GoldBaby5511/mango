@@ -12,6 +12,7 @@ enum CMDGateway{
 	IDHelloReq					= 6;        	//握手请求
 	IDHelloRsp					= 7;        	//握手回复
 	IDNetworkDisconnected		= 8;        	//网络断开
+	IDShutDownSocket			= 9;        	//关闭网络
 }
 
 //测速请求
@@ -106,4 +107,10 @@ message HelloRsp{
 //网络断开
 message NetworkDisconnected{
 	uint64   						user_id = 1;        			//用户ID
+}
+
+//关闭网络
+message ShutDownSocket{
+	uint64 user_id =1;   		//用户id
+	uint64 gate_conn_id=2; 		//gate连接id
 }

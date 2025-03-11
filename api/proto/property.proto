@@ -7,8 +7,8 @@ enum CMDProperty {
 	IDNone						= 0;
 	IDQueryPropertyReq			= 1;			//查询财富
 	IDQueryPropertyRsp			= 2;			//查询财富
-	IDModifyPropertyReq			= 3;			//修改财富
-	IDModifyPropertyRsp			= 4;			//修改财富
+	//IDModifyPropertyReq			= 3;			//修改财富
+	//IDModifyPropertyRsp			= 4;			//修改财富
 	IDWriteGameScoreReq			= 5;			//修改积分
 	IDWriteGameScoreRsp			= 6;			//修改积分
 };
@@ -25,18 +25,18 @@ message QueryPropertyRsp{
 	types.ErrorInfo					err_info 					= 99;			//错误信息
 }
 
-message ModifyPropertyReq{
-	uint64   						user_id = 1;         	//用户ID
-	int32   						op_type = 2;         	//操作类型
-	repeated types.PropItem 		user_props = 3;			//用户道具
-}
+//message ModifyPropertyReq{
+//	uint64   						user_id = 1;         	//用户ID
+//	int32   						op_type = 2;         	//操作类型
+//	repeated types.PropItem 		user_props = 3;			//用户道具
+//}
 
-message ModifyPropertyRsp{
-	uint64   						user_id = 1;         	//用户ID
-	int32   						op_type = 2;         	//操作类型
-	repeated types.PropItem 		user_props = 3;			//用户道具
-	types.ErrorInfo					err_info = 99;
-}
+//message ModifyPropertyRsp{
+//	uint64   						user_id = 1;         	//用户ID
+//	int32   						op_type = 2;         	//操作类型
+//	repeated types.PropItem 		user_props = 3;			//用户道具
+//	types.ErrorInfo					err_info = 99;
+//}
 
 //游戏积分
 message WriteGameScoreReq{
