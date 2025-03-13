@@ -3,7 +3,6 @@ package business
 import (
 	"bytes"
 	"fmt"
-	"github.com/golang/protobuf/proto"
 	"mango/api/center"
 	"mango/pkg/conf"
 	"mango/pkg/conf/apollo"
@@ -81,7 +80,7 @@ func configChangeNotify(args []interface{}) {
 	}
 }
 
-//控制消息
+// 控制消息
 func appControlNotify(args []interface{}) {
 	b := args[n.DataIndex].(n.BaseMessage)
 	m := (b.MyMessage).(*center.AppControlReq)
@@ -93,12 +92,19 @@ func appControlNotify(args []interface{}) {
 	msgRespond := func(errCode int32, errInfo string) {
 		log.Debug("", "控制回复,appId=%v,code=%v,errInfo=%v", srcAgent.AppId, errCode, errInfo)
 
-		var rsp center.AppControlRsp
-		rsp.CtlId = proto.Int32(m.GetCtlId())
-		rsp.AppType = proto.Uint32(m.GetAppType())
-		rsp.AppId = proto.Uint32(m.GetAppId())
-		rsp.Code = proto.Int32(errCode)
-		rsp.Info = proto.String(errInfo)
+		rsp := center.AppControlRsp{
+			CtlId:   m.GetCtlId(),
+			AppType: m.GetAppType(),
+			AppId:   m.GetAppId(),
+			Code:    errCode,
+			Info:    errInfo,
+		}
+		//var rsp center.AppControlRsp
+		//rsp.CtlId = proto.Int32(m.GetCtlId())
+		//rsp.AppType = proto.Uint32(m.GetAppType())
+		//rsp.AppId = proto.Uint32(m.GetAppId())
+		//rsp.Code = proto.Int32(errCode)
+		//rsp.Info = proto.String(errInfo)
 		g.SendData2App(n.AppCenter, srcAgent.AppId, n.AppCenter, uint32(center.CMDCenter_IDAppControlRsp), &rsp)
 	}
 
