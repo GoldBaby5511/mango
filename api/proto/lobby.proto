@@ -20,7 +20,7 @@ enum CMDLobby {
 message LoginReq{
 	enum LoginType {
 		acc		= 0;			//账号
-		token 	= 1;				//
+		token 	= 1;			//
 		unionId = 2;			//唯一标识(游客登录等)
 	}
    
