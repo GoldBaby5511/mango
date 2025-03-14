@@ -6,6 +6,7 @@ import (
 	"mango/pkg/conf"
 	"mango/pkg/log"
 	n "mango/pkg/network"
+	"mango/pkg/util"
 	"strconv"
 	"sync"
 	"time"
@@ -185,8 +186,13 @@ func changeNotify(k ConfKey) {
 }
 
 func checkConfigRsp() {
+	if netAgent == nil {
+		log.Warning("Apollo", "网络代理为空")
+		return
+	}
 	mutexRegSub.Lock()
-	if len(regSubList) == 0 {
+	lenRegList := len(regSubList)
+	if lenRegList == 0 {
 		mutexRegSub.Unlock()
 		return
 	}
@@ -196,9 +202,13 @@ func checkConfigRsp() {
 	}
 	mutexRegSub.Unlock()
 
-	log.Info("", "配置回复检查,c=%v", totalRspCount)
+	log.Info("", "配置回复检查,totalRspCount=%v,lenRegList=%v", totalRspCount, lenRegList)
 
 	if totalRspCount == 0 {
+		//重复发送
+		for key, _ := range regSubList {
+			sendSubscribeReq(key, false)
+		}
 		time.AfterFunc(1*time.Second, checkConfigRsp)
 	}
 }
@@ -214,18 +224,23 @@ func RegisterConfig(key string, reqAppType, reqAppId uint32) {
 	regSubList[regKey] = &ConfValue{}
 	mutexRegSub.Unlock()
 
-	log.Info("Apollo", "注册Apollo订阅,regKey=%v", regKey)
+	log.Info("Apollo", "注册Apollo订阅,regKey=%v,netAgent=%v", regKey, netAgent != nil)
 
-	sendSubscribeReq(regKey, false)
+	if netAgent != nil {
+		sendSubscribeReq(regKey, false)
+	}
 }
 
+// 发送订阅
 func sendSubscribeReq(k ConfKey, cancel bool) {
 	if netAgent == nil {
+		log.Warning("Apollo", "网络代理为空,%v", util.PrintStructFields(k))
 		return
 	}
 	mutexRegSub.Lock()
 	defer mutexRegSub.Unlock()
 	if _, ok := regSubList[k]; !ok {
+		log.Warning("Apollo", "没有这个key,%v", util.PrintStructFields(k))
 		return
 	}
 
