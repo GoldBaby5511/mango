@@ -38,7 +38,7 @@ type (
 var (
 	contextLogger  *logrus.Entry   = nil
 	logDir                         = ""
-	screenPrint                    = 1
+	screenPrint                    = 0
 	MinLevel                       = 0 //低于这个等级的日志不输出
 	chanPrint                      = make(chan LogInfo, 100)
 	cb             func(i LogInfo) = nil
