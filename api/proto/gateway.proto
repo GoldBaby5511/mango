@@ -1,0 +1,105 @@
+syntax = "proto2";
+package bs.gateway;
+option go_package ="/gateway";
+
+enum CMDGateway{
+	IDPulseReq					= 1;        	//测速请求
+	IDPulseRsp					= 2;        	//测速回复
+	IDTransferDataReq			= 3; 			//数据转发请求
+	IDTransferDataRsp			= 4; 			//数据转发回复
+	IDAuthInfo					= 5;        	//认证信息
+	IDHelloReq					= 6;        	//握手请求
+	IDHelloRsp					= 7;        	//握手回复
+}
+
+//测速请求
+message	PulseReq{
+	optional uint32 my_speed=1;
+	optional uint32 speed_data=2;
+	optional bytes  attached_data=3;
+}
+
+//测速请求
+message	PulseRsp{
+	optional uint32 speed_data=1;
+	optional bytes 	attachd_data=2;
+	optional int64 	timestamp = 3;
+}
+
+//数据转发请求
+message TransferDataReq{
+	optional uint32 dest_apptype=1;   	//目标或源apptype
+	optional uint32 dest_appid=2;     	//目标或源appid
+	optional uint32 data_apptype=3;
+	optional uint32 data_cmdid=4;
+	optional bytes	data = 5;
+	optional uint32 req_id =6;
+	optional uint32 client_ip_v4=7;		//客户端的ip
+	optional uint64 att_sessionid=8; 	//联联的session id ，目前只由gate->client
+	optional uint64 gateconnid=9; 		//关联的gate连接id
+	optional uint32 gateid = 10;		//关联的gate_id
+	optional uint64 user_id = 11; 		//用户ID
+};
+
+//数据转发请求
+message TransferDataRsp{
+	optional uint32 result=1;
+	optional uint32 req_id =6;
+};
+
+//连接认证信息
+message AuthInfo{
+	enum OpType {
+		Bind = 0;//userId与connId绑定
+		Disconnect = 1;//断开当前connId连接
+	}
+	optional uint64 user_id =1;   		//用户id
+	optional uint64 gateconnid=2; 		//关联的gate连接id
+	optional uint32 result=3;     		//结果 0成功
+	optional string info=4;       		//描述信息
+	optional OpType op_type=5;       	//操作类型
+};
+
+//握手请求
+message HelloReq{
+   optional uint32  ad_id=2;
+   optional string  others=3;
+   optional uint32  builder_no =4;      
+   optional uint32  game_kind = 5;      
+   optional string  client_version=6;
+   optional uint32  client_type = 7;
+   optional string  public_key = 8;
+   optional	string 	encrypt_key = 9;		//加密key
+   optional string  guid = 10;
+}
+
+//握手回复
+message HelloRsp{
+   enum RspFlag{
+      UNKNOWN=0;           //未知
+      EncryptInfo=1;       //加密信息   encrypt_key 这是存在的
+      AdviceNewGate=2;     //建议去新的gate，这时gate_address 必须有内容
+      LoginToken=4;        //登录令牌
+   }
+   
+   optional uint32 	rsp_flag= 1;			//通知的消息内容
+   repeated	string 	gate_address=2;		//当前最新的gate地址
+   optional uint32	login_token=4; 		//登录令牌
+   optional string  public_key = 8;
+   optional	string 	encrypt_key = 3;		//加密key
+
+   /*
+   =0 表示是最新版本
+   =1 表示有新版本,但当前版本还可以用
+   =2 表示老版本必须更新了,当前连接会被断开的
+   */
+   optional uint32 version_result = 5;
+
+   /*
+   如果有新的版本,下载地址(一般用于手机)
+   */
+   optional string down_url = 6;
+
+   //如果Req的guid为空，则这里为其创建一个guid
+   optional string guid = 7;
+}

@@ -1,0 +1,100 @@
+syntax = "proto2";
+import "types.proto";
+package bs.lobby;
+option go_package ="/lobby";
+
+enum CMDLobby {
+	IDLoginReq 			= 1;		//登录请求
+	IDLoginRsp 			= 2;		//登录回复
+	IDLogoutReq 		= 3;		//注销登录
+	IDLogoutRsp 		= 4;		//注销登录
+	IDLogicRegReq 		= 5;		//逻辑注册
+	IDLogicRegRsp 		= 6;		//逻辑注册
+	IDUserState 		= 7;		//用户状态
+}
+
+//登录请求
+message LoginReq{
+   enum LoginType {
+		Account = 0;			//账号
+		Token = 1;				//
+		UnionId = 2;			//唯一标识(游客登录等)
+   }
+   
+	optional uint32 			game_kind = 1;			//游戏种类
+	optional LoginType 		login_type = 2;		//登录类型
+	optional string 			account = 3;			//用户账号(根据 LoginAction填不通内容)
+	optional string 			password = 4;			//用户密码
+	optional string 			version = 5;			//客户端版本号
+	optional string 			IP = 6;					//客户端IP
+	optional string 			system_version = 7;		//操作系统版本号
+	optional uint32 			channel_id = 8;			//主渠道id
+	optional uint32 			site_id = 9;			//子渠道id
+	optional string 			device_id = 10;			//设备唯一码
+	optional int32 				user_type = 11;			//用户类型(客户端禁止使用)
+}
+
+// 登录回复
+message LoginRsp{
+   enum Result {
+		SUCCESS = 0;					//成功
+		NOTEXIST = 1;					//账号不存在
+		FROZEN = 2;						//账号被冻结
+		FALSEPW = 3;					//密码错误	
+		NETERROR = 4;					//网络异常	
+		APPISBUSY = 5;					//服务器忙，人数爆满
+		GUESTFORBID = 6;				//禁止游客登录
+		CONNECTERROR = 7;				//连接异常	
+		VERSIONOLD = 8;					//版本过低
+		NOMOREGUEST = 9;				//游客分配失败
+		FREQUENTLY = 10;				//所在ip登录过多
+		APPINITING = 11;				//系统初始化，请稍后再试
+		SERVERERROR = 0xFF;				//服务端出错
+		UNKOWN = 1000;					//未知错误
+		TOKEN_FAILED = 1001;			//Token出错
+		TOKEN_EXPIRED = 1002;			//token过期了
+		TOKEN_NOTMATCH = 1003;			//token与appid不匹配
+   }
+   optional Result 							result = 1;								//登录结果
+   optional types.BaseUserInfo	base_info = 2;							//基本信息
+   optional types.ErrorInfo			err_info = 99;
+}
+
+
+// 注销登录
+message LogoutReq{
+   required uint64 				user_id = 1;
+	 optional uint64 				GateConnId = 2; //客户端可不填
+}
+
+// 注销登录
+message LogoutRsp{
+   enum LogoutReason {
+		Normal = 0;
+		AnotherLogin = 1;   //被顶号
+   }
+
+   optional LogoutReason		reason = 1;
+   optional types.ErrorInfo		err_info = 99;
+}
+
+//
+message LogicRegReq{
+}
+
+//
+message LogicRegRsp{
+	optional types.ErrorInfo		err_info = 99;
+}
+
+//用户状态
+message UserOnlineState{
+	enum OnlineStat {
+		Online = 1;
+		Disconnection = 2;
+		Reconnect = 3;
+		Offline = 4;
+	}
+	optional types.BaseUserInfo		user_info = 1;							//基本信息
+	optional OnlineStat				online_state = 2;
+}	

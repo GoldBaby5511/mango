@@ -1,0 +1,68 @@
+syntax = "proto2";
+//import "types.proto";
+package bs.table;
+option go_package ="/table";
+
+enum CMDTable {
+	IDApplyReq					= 1;			//
+	IDApplyRsp					= 2;			//
+	IDReleaseReq				= 3;			//
+	IDReleaseRsp				= 4;			//
+	IDSetPlayerToTableReq		= 5;			//
+	IDSetPlayerToTableRsp		= 6;			//
+	IDMatchTableReq				= 7;			//
+	IDMatchTableRsp				= 8;			//
+	IDGameMessage				= 9;			//
+	IDWriteGameScore			= 10;			//
+	IDGameOver					= 11;			//
+}
+
+message ApplyReq{
+	optional uint32 apply_count = 1;
+}
+
+message ApplyRsp{
+	optional uint32 apply_count = 1;
+	repeated uint64 table_ids = 2;
+}
+
+message ReleaseReq{
+	optional uint32 release_count = 1;
+	repeated uint64 table_ids = 2;
+}
+
+message ReleaseRsp{
+	
+}
+
+message SetPlayerToTableReq{
+	optional uint64 table_id = 1;
+	optional uint64 user_id = 2;
+	optional uint32 seat_id = 3;
+	optional uint64 gateconnid = 4;
+}
+
+message SetPlayerToTableRsp{
+}
+
+message MatchTableReq{
+	optional uint64 				table_id = 1;
+	repeated uint64 	players = 2;
+}
+
+message MatchTableRsp{
+	
+}
+
+message GameMessage{
+	optional uint32 sub_cmdid =1;
+	optional bytes 	data = 2;
+}
+
+message WriteGameScore{
+	optional uint64 table_id = 1;
+}
+
+message GameOver{
+	optional uint64 table_id = 1;
+}

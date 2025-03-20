@@ -1,0 +1,95 @@
+syntax = "proto2";
+package bs.center;
+option go_package ="/center";
+
+enum CMDCenter {
+	IDAppRegReq			=1;			//服务注册
+	IDAppRegRsp			=2;			//服务注册
+	IDAppState			=3;			//服务状态
+	IDHeartBeatReq		=4;			//服务心跳
+	IDHeartBeatRsp		=5;			//服务心跳
+	IDAppControlReq		=6;			//控制消息
+	IDAppControlRsp		=7;			//控制消息
+}
+
+//服务注册
+message	RegisterAppReq {
+	required string auth_key =1;
+	optional string att_data =2;
+	optional string my_address=3;
+	optional uint32 app_type=4;
+	optional uint32 app_id =5;
+	optional string rereg_token=6; 	//如果中间网络断开了,可以使用rereg_token强行再次注册
+	optional string app_name = 7; 	//app的名称(一般为进程名)
+}
+
+//服务注册
+message RegisterAppRsp {
+	required uint32	reg_result = 1; 	//0表示成功，其它为错误码(rereg_token为出错内容)
+	optional string	rereg_token = 2; 	//如果中间网络断开了,可以使用rereg_token强行再次注册
+	optional uint32	center_id = 3;
+	optional uint32 app_type=4;   		//Router 或其他
+	optional uint32 app_id =5;
+	optional string app_name = 6; 		//app的名称(一般为进程名)
+	optional string app_address = 7; 	//监听地址
+}
+
+//服务状态
+message AppStateNotify{
+	required int32 app_state=1;
+	optional uint32 center_id=2;     
+	optional uint32 app_type=4;
+	optional uint32 app_id =5;
+}
+
+//服务心跳
+message HeartBeatReq{
+	optional int64  	beat_id				= 1;
+	optional int64  	pulse_time			= 2;
+	optional int32 		service_state = 3;
+	optional string  	state_description	= 4;
+	optional string 	http_address=5;
+	optional string 	rpc_address=6;
+}
+
+//服务心跳
+message HeartBeatRsp{
+	optional int64  	pulse_time			= 1;
+}
+
+enum CtlId{
+	Maintenance=1;									//开始维护
+	MaintenanceFinish=2;							//维护完成
+	ShowServerList=3;								//显示列表
+	StartService=4;									//启动服务
+	StopService=5;									//停止服务
+	UpdateService=6;									//更新服务
+}
+
+message controlItem{
+	optional string			name = 1;
+	optional uint32			type = 2;
+	optional uint32			id = 3;
+	optional string 								command=4;							//命令
+	repeated string 								args=5;									//参数
+}
+
+message AppControlReq {
+	optional int32 									ctl_id = 1; 						// 命令编号
+	optional uint32 								app_type=2;
+	optional uint32 								app_id =3;
+	repeated controlItem						ctl_servers=4;					//操作服务
+	repeated string 								args=5;									//参数
+}
+
+message AppControlRsp {
+	optional int32 									ctl_id = 1; 						// 命令编号
+	optional uint32 								app_type=2;
+	optional uint32 								app_id =3;
+	optional int32	code = 4;
+	optional string info = 5;
+}
+
+service AppControl{
+	rpc ControlReq(AppControlReq) returns(AppControlRsp);
+}

@@ -1,0 +1,29 @@
+syntax = "proto2";
+import "types.proto";
+package bs.list;
+option go_package ="/list";
+
+enum CMDList {
+	IDRoomRegisterReq	= 1;			//房间注册
+	IDRoomRegisterRsp	= 2;			//房间注册
+	IDRoomListReq		= 3;			//列表请求
+	IDRoomListRsp		= 4;			//列表请求
+}
+
+message RoomRegisterReq{
+	optional types.RoomInfo					info = 1;
+}
+
+message RoomRegisterRsp{
+	optional types.ErrorInfo				err_info = 99;
+}
+
+//房间列表
+message RoomListReq{
+	optional uint32							list_id = 1;
+}
+
+//房间列表
+message RoomListRsp{
+	repeated types.RoomInfo					rooms = 1;
+}

@@ -1,0 +1,136 @@
+{
+    "configurations": {
+        "LogScreenPrint": "1",
+        "title": "中心服务",
+        "日志服务器地址": "127.0.0.1:10001",
+        "http监听地址": "127.0.0.1:10052",
+        "服务列表": [
+            {
+                "DaemonId": 300,
+                "Alias": "配置中心",
+                "Name": "config",
+                "Type": 3,
+                "Id": 55,
+                "ListenOnAddr": "127.0.0.1:10055",
+                "CenterAddr": "127.0.0.1:10050"
+            },
+            {
+                "DaemonId": 300,
+                "Alias": "网关0",
+                "Name": "gateway",
+                "Type": 4,
+                "Id": 100,
+                "ListenOnAddr": "127.0.0.1:10100",
+                "CenterAddr": "127.0.0.1:10050"
+            },
+            {
+                "DaemonId": 300,
+                "Alias": "网关1",
+                "Name": "gateway",
+                "Type": 4,
+                "Id": 110,
+                "ListenOnAddr": "127.0.0.1:10110",
+                "CenterAddr": "127.0.0.1:10050"
+            },
+            {
+                "DaemonId": 300,
+                "Alias": "大厅服",
+                "Name": "lobby",
+                "Type": 5,
+                "Id": 60,
+                "ListenOnAddr": "127.0.0.1:10060",
+                "CenterAddr": "127.0.0.1:10050"
+            },
+            {
+                "DaemonId": 300,
+                "Alias": "列表服",
+                "Name": "list",
+                "Type": 6,
+                "Id": 65,
+                "ListenOnAddr": "127.0.0.1:10060",
+                "CenterAddr": "127.0.0.1:10050"
+            },
+            {
+                "DaemonId": 300,
+                "Alias": "桌子服0",
+                "Name": "table",
+                "Type": 11,
+                "Id": 1000,
+                "ListenOnAddr": "127.0.0.1:11000",
+                "CenterAddr": "127.0.0.1:10050"
+            },
+            {
+                "DaemonId": 300,
+                "Alias": "房间服0",
+                "Name": "room",
+                "Type": 12,
+                "Id": 2000,
+                "ListenOnAddr": "127.0.0.1:12000",
+                "CenterAddr": "127.0.0.1:10050"
+            },
+            {
+                "DaemonId": 300,
+                "Alias": "机器人0",
+                "Name": "robot",
+                "Type": 9,
+                "Id": 3000,
+                "ListenOnAddr": "127.0.0.1:13000",
+                "CenterAddr": "127.0.0.1:10050"
+            },
+            {
+                "DaemonId": 300,
+                "Alias": "桌子服1",
+                "Name": "table",
+                "Type": 11,
+                "Id": 1010,
+                "ListenOnAddr": "127.0.0.1:11010",
+                "CenterAddr": "127.0.0.1:10050"
+            },
+            {
+                "DaemonId": 300,
+                "Alias": "房间服1",
+                "Name": "room",
+                "Type": 12,
+                "Id": 2010,
+                "ListenOnAddr": "127.0.0.1:12010",
+                "CenterAddr": "127.0.0.1:10050"
+            },
+            {
+                "DaemonId": 300,
+                "Alias": "机器人1",
+                "Name": "robot",
+                "Type": 9,
+                "Id": 3010,
+                "ListenOnAddr": "127.0.0.1:13010",
+                "CenterAddr": "127.0.0.1:10050"
+            },
+            {
+                "DaemonId": 300,
+                "Alias": "桌子服2",
+                "Name": "table",
+                "Type": 11,
+                "Id": 1020,
+                "ListenOnAddr": "127.0.0.1:11020",
+                "CenterAddr": "127.0.0.1:10050"
+            },
+            {
+                "DaemonId": 300,
+                "Alias": "房间服2",
+                "Name": "room",
+                "Type": 12,
+                "Id": 2020,
+                "ListenOnAddr": "127.0.0.1:12020",
+                "CenterAddr": "127.0.0.1:10050"
+            },
+            {
+                "DaemonId": 300,
+                "Alias": "机器人2",
+                "Name": "robot",
+                "Type": 9,
+                "Id": 3020,
+                "ListenOnAddr": "127.0.0.1:13020",
+                "CenterAddr": "127.0.0.1:10050"
+            }
+        ]
+    }
+}

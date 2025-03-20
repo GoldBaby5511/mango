@@ -1,0 +1,7 @@
+{
+	"configurations": {
+		"LogScreenPrint": "0",
+		"日志服务器地址": "127.0.0.1:15005",
+		"服务路径": "/home//ServerBin/"
+  }
+}

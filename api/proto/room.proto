@@ -1,0 +1,51 @@
+syntax = "proto2";
+import "types.proto";
+package bs.room;
+option go_package ="/room";
+
+enum CMDRoom {
+	IDJoinReq			= 1;			//进入房间
+	IDJoinRsp			= 2;			//进入房间
+	IDUserActionReq		= 3;			//用户动作
+	IDUserActionRsp		= 4;			//用户动作
+	IDExitReq			= 5;			//离开房间
+	IDExitRsp			= 6;			//离开房间
+	IDUserStateChange	= 7;			//状态变化
+}
+
+message JoinReq{
+}
+
+message JoinRsp{
+	optional uint32						app_id = 1;
+	optional types.ErrorInfo			err_info = 99;
+}
+
+enum ActionType {
+	Ready=1;
+	Cancel=2;
+}
+	
+message UserActionReq{
+	optional ActionType action = 1;
+}
+
+message UserActionRsp{
+	optional ActionType 		action = 1;
+	optional types.ErrorInfo	err_info = 99;
+}
+
+message ExitReq{
+}
+
+message ExitRsp{
+	optional types.ErrorInfo	err_info = 99;
+}
+
+message UserStateChange{
+	optional uint64   				user_id = 1;         	//用户ID
+	optional uint32   				user_state = 2;         //用户状态
+	optional uint32   				table_service_id = 3;  	//
+	optional uint64   				table_id = 4;         	//
+	optional uint32   				seat_id = 5;         	//
+}

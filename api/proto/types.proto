@@ -1,0 +1,76 @@
+syntax = "proto2";
+package bs.types;
+option go_package ="mango/api/types";
+//option go_package ="/types";
+
+message ErrorInfo{
+	optional int32	code = 1;
+	optional string info = 2;
+}
+
+enum PropType{
+	Score = 1;
+}
+
+message PropItem{
+	optional PropType	prop_id = 1;
+	optional int64		prop_count = 2;
+}
+
+message BaseAppInfo{
+	optional string			name = 1;
+	optional uint32			type = 2;
+	optional uint32			id = 3;
+	optional uint32			version = 4;
+}
+
+message BaseUserInfo {
+	enum UserType{
+		UNKNOW = 0;	//未知
+		Normal = 1;	//正常类型
+		Robot = 10;	//机器人
+	}
+	optional string		account = 1;			//用户账号
+	optional uint64   	user_id = 2;         	//用户ID 
+	optional uint64   	game_id = 3;			//数字ID
+	optional uint32		gender = 4;				//性别
+	optional uint32		face_id = 5;			//头像id
+	optional string		custom_face = 6;		//自定义的图像地址
+	optional string		nick_name = 7;			//昵称
+	optional UserType 	user_type = 8;			//用户类别
+	repeated PropItem 	user_props = 9;			//用户道具
+	optional uint32		market_id = 10;			//登录主渠道
+	optional uint32		site_id = 11;         	//登录子渠道
+	optional uint32		reg_market_id = 12;		//注册主渠道
+	optional uint32		reg_site_id = 13;		//注册子渠道
+	optional string		register_data = 14;   	//注册时间
+	optional uint64 	gate_connid = 15; 		//关联的gate连接id
+}
+
+message UserRoomInfo{
+	optional BaseUserInfo 	base_info = 1;				//基础信息
+	optional uint64 		table_id = 2;				//所有桌子
+	optional uint32 		seat_id = 3;	   			//所在位置
+	optional uint32			user_state = 4;				//用户状态
+	optional uint32			lost_count = 5;				//玩家总输局
+	optional uint32			draw_count = 6;				//玩家总平局
+  	optional uint32			win_count = 7;				//玩家总胜局		
+}
+
+message RoomInfo{
+	enum RoomType{
+		Gold = 0x0001;		//金币
+		Private = 0x0010;	//私有
+		RedPack = 0x0020;	//红包
+	}
+	optional BaseAppInfo			app_info = 1;
+	optional uint32					kind = 2;
+	optional RoomType				type = 3;
+	optional uint32					level = 4;
+	optional string					name = 5;
+	optional int64					base_score = 6;
+	optional int64					join_min = 7;
+	optional int64					join_max = 8;
+	optional int64					out_score = 9;
+	optional int64					win_limit = 10;
+}

@@ -1,0 +1,26 @@
+{
+    "configurations": {
+        "LogScreenPrint": "1",
+        "title": "登录服务",
+        "日志服务器地址": "127.0.0.1:10001",
+        "数据库配置": {
+            "master": {
+                "driver": "mysql",
+                "server": "",
+                "database": "TODO",
+                "port": "TODO",
+                "userid": "TODO",
+                "password": "TODO",
+                "maxOpenConnects": 150,
+                "maxIdleConnects": 5,
+                "connMaxLifeTime": 30000
+            },
+            "nosql": {
+                "redis": {
+                    "server": "",
+                    "password": "TODO"
+                }
+            }
+        }
+    }
+}

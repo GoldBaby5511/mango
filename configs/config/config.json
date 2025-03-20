@@ -1,0 +1,64 @@
+{
+    "Name": "config",
+    "Type": 3,
+    "Id": 60,
+    "CenterAddr": "127.0.0.1:10050",
+    "ListenOnAddr": "",
+    "LoggerAddr": "127.0.0.1:10001",
+    "UseApollo": false,
+    "Config": {
+        "appID": "mango-apollo",
+        "cluster": "dev",
+        "ip": "http://192.168.22.47:8080",
+        "namespaceName": "application",
+        "isBackupConfig": true,
+        "secret": ""
+    },
+    "CommonServers": [
+		{
+            "namespaceName":"configs/config/center.json",
+            "serverType":2,
+            "serverID":0
+        },
+        {
+            "namespaceName":"configs/config/gateway-100.json",
+            "serverType":4,
+            "serverID":100
+        },
+        {
+            "namespaceName":"configs/config/lobby.json",
+            "serverType":5,
+            "serverID":0
+        },
+        {
+            "namespaceName":"configs/config/property.json",
+            "serverType":6,
+            "serverID":0
+        },
+        {
+            "namespaceName":"configs/config/list.json",
+            "serverType":10,
+            "serverID":0
+        },
+        {
+            "namespaceName":"configs/config/daemon-300.json",
+            "serverType":100,
+            "serverID":0
+        },
+        {
+            "namespaceName":"configs/config/table-1000.json",
+            "serverType":11,
+            "serverID":1000
+        },
+        {
+            "namespaceName":"configs/config/room-2000.json",
+            "serverType":12,
+            "serverID":2000
+        },
+        {
+            "namespaceName":"configs/config/robot-3000.json",
+            "serverType":9,
+            "serverID":3000
+        }
+    ]
+}

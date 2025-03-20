@@ -1,0 +1,32 @@
+syntax = "proto2";
+package bs.logger;
+option go_package ="/logger";
+
+enum CMDLogger{
+	IDLogClientInit 			= 1;
+	IDLogReq 					= 2;
+	IDLogFlush 					= 3;	// 立即写日志到文件中
+}
+
+message	LogReq{
+	optional string file_name=1;		// FILE_NAME
+	optional uint32 line_no=2;			// LINE_NO
+	optional uint32 thread_id=3;		// 线程
+	optional bytes class_name=4;		// 日志分类名称
+	optional uint32 log_level=5;		// 日志级别
+	optional bytes content=6;			// 内容
+	optional uint32 server_id=7;		// 来自于哪个服务器
+	optional int64 time_ns=8;			// 发出时间
+	optional bool   show_list=9;		// 是否在界面的日志框中输出
+	optional uint32 src_apptype=10;		// 源AppType
+	optional uint32 src_appid=11;		// 源AppID
+	optional uint64 time_ms_recv=12;	// 接收时间
+	optional string src_appname=13;		// 源App名(一般为进程名)
+}
+
+message LogFlush {
+	optional uint32 server_id=1;		// 来自于哪个服务器
+	optional uint32 src_apptype=2;		// 源AppType
+	optional uint32 src_appid=3;		// 源AppID
+	optional string src_appname=4;		// 源App名(一般为进程名)
+}

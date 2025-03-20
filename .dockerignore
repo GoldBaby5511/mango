@@ -1,0 +1,12 @@
+.git
+.idea
+*.exe
+.gitignore
+.bat
+LICENSE
+README.md
+examples/
+cmd/gateway/log/
+cmd/logger/log/
+cmd/login/log/
+cmd/router/log/

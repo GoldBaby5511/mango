@@ -1,0 +1,7 @@
+{
+    "configurations": {
+        "LogScreenPrint": "1",
+        "title": "列表服务",
+        "日志服务器地址": "127.0.0.1:10001"
+    }
+}

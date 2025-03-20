@@ -1,0 +1,69 @@
+syntax = "proto2";
+package bs.gameddz;
+option go_package ="/gameddz";
+
+enum CMDGameddz {
+	IDGameStart			= 1;			//
+	IDReSendCard		= 2;			//
+	IDCallLandReq		= 3;			//
+	IDCallLandRsp		= 4;			//
+	IDConfirmLand		= 5;			//
+	IDOutCardReq		= 6;			//
+	IDOutCardRsp		= 7;			//
+	IDGameDataReq		= 8;			//
+	IDGameDataRsp		= 9;			//
+	IDGameOver			= 10;			//
+}
+
+message GameStart{
+	optional uint32 current_seat = 1;
+	repeated bytes 	hand_card = 2;
+	repeated bytes 	user_state = 3;
+}
+
+message ReSendCard{
+	optional uint32 current_seat = 1;
+	repeated bytes 	hand_card = 2;
+}
+
+message CallLandReq{
+	optional uint32 call_score = 1;
+}
+
+message CallLandRsp{
+	optional uint32 current_seat = 1;
+	optional uint32 call_seat = 2;
+	optional uint32 call_score = 3;
+	repeated uint32 cur_times = 4;
+}
+
+message ConfirmLand{
+	optional uint32 current_seat = 1;
+	optional uint32 land_seat = 2;
+	optional bytes 	bottom_card = 3;
+	repeated uint32 cur_times = 4;
+}
+
+message OutCardReq{
+	optional bytes 	out_card = 1;
+}
+
+message OutCardRsp{
+	optional uint32 current_seat = 1;
+	optional uint32 outcard_seat = 2;
+	optional bytes 	out_card = 3;
+}
+
+message UserState{
+}
+
+message GameDataReq{
+}
+
+message GameDataRsp{
+}
+
+message GameOver{
+	optional uint32 win_seat = 1;
+	repeated int64 	score = 2;
+}
